@@ -1,0 +1,7 @@
+These are bandpass filter parameters used in each window for ECG calculation basing HeartPy.
+
+REF:
+
+https://python-heart-rate-analysis-toolkit.readthedocs.io/en/latest/
+
+https://github.com/paulvangentcom/heartrate_analysis_python/blob/master/docs/index.rst
