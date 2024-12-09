@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from scipy.signal import butter, filtfilt, find_peaks, resample
 import os
-from Analysis.config import BASE_DIR, RESULTS_DIR, WINDOW_DIR
+from config import RESULTS_DIR, WINDOW_DIR
 
 
 class PPGDenoising:

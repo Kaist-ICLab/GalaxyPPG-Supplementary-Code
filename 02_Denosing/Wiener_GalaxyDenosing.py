@@ -3,7 +3,7 @@ from scipy import signal
 from scipy.fft import fft, ifft
 import os
 import pandas as pd
-from Analysis.config import RESULTS_DIR, WINDOW_DIR
+from config import RESULTS_DIR, WINDOW_DIR
 
 
 class WienerDenoising:

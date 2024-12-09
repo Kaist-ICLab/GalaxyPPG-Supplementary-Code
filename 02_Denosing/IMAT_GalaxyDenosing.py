@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 from scipy.signal import find_peaks, butter, filtfilt
-from Analysis.config import RESULTS_DIR, WINDOW_DIR
+from config import RESULTS_DIR, WINDOW_DIR
 import numpy as np
 from scipy import signal
 

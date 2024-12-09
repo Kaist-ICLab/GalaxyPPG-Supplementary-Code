@@ -8,7 +8,7 @@ from heartpy.preprocessing import scale_data
 from typing import Dict,Optional, Tuple
 from collections import defaultdict
 
-from Analysis.config import RESULTS_DIR, WINDOW_DIR
+from config import RESULTS_DIR, WINDOW_DIR
 
 
 class PPGAnalyzer:
@@ -579,7 +579,7 @@ def print_analysis(results):
                     for metric, stats in metrics.items():
                         print(f"{metric}: {stats['mean']:.2f} ± {stats['std']:.2f} (n={stats['count']})")
 def main():
-    from Analysis.config import WINDOW_DIR, RESULTS_DIR
+    from config import WINDOW_DIR, RESULTS_DIR
 
     analyzer = PPGAnalyzer(WINDOW_DIR)
     output_dir = os.path.join(RESULTS_DIR, 'session_analysis')

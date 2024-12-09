@@ -56,7 +56,7 @@ class TrueECGProcessor:
         self.HR_MAX = 200  # Maximum heart rate
 
         # Path for parameter files
-        self.param_dir = '../01_WindowSegment/filter_parameters'
+        self.param_dir = 'filter_parameters'
         if not os.path.exists(self.param_dir):
             raise FileNotFoundError("Filter parameters directory not found")
 
@@ -346,7 +346,7 @@ class TrueECGProcessor:
         print("\nAll processing complete")
 
 def main():
-    from Analysis.config import BASE_DIR
+    from config import BASE_DIR
     window_data_dir = os.path.join(BASE_DIR, 'WindowData')
     processor = TrueECGProcessor(window_data_dir)
     processor.process_all_participants()

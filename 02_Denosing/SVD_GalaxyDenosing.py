@@ -2,7 +2,7 @@ import numpy as np
 from scipy import signal
 import os
 import pandas as pd
-from Analysis.config import RESULTS_DIR, WINDOW_DIR
+from config import RESULTS_DIR, WINDOW_DIR
 
 
 class OptimizedSVDDenoising:
