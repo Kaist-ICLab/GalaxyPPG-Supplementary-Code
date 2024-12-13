@@ -3,8 +3,8 @@
 
 This repository provides supplementary code for the GalaxyPPG dataset paper, 
 demonstrating basic processing pipelines and potential use cases. 
-The code implementations are for demonstration and reproducibility purposes only, 
-and not represent optimal solutions for ECG and PPG signal processing. 
+The code implementations are for demonstration and reproducibility purposes only 
+and do not represent optimal solutions for ECG and PPG signal processing. 
 ### We encourage researchers to develop and apply more advanced algorithms using this dataset.
 The provided code assists in data completeness checks, pre-processing, denoising, and peak detection, helping researchers efficiently navigate and analyze the dataset.
 # Installation
@@ -94,7 +94,7 @@ Expected Outputs: A CSV file containing segmented signals (PPG, ECG, ACC) for ea
   - window_size: Duration of each analysis window (default: 8 seconds)
   - window_step: Sliding step between consecutive windows (default: 2 seconds)
 ## 03 Denoising 
-Located in [03_Denosing](03_Denosing), this section handles signal denosing.
+Located in [03_Denosing](03_Denosing), this section handles signal denoising.
 
 For optimal performance, we recommend referring to the original papers for algorithm details and considering state-of-the-art approaches in the field.
 
