@@ -138,3 +138,17 @@ This file calculates HRV metrics from ECG signals using HeartPy.
 And it utilizes customized bandpass filtering parameters from [filter_parameters](01_WindowSegment%2Ffilter_parameters).
 ### [PPG_Calculation_basing_HeartPy.py](04_PeakDetection%2FPPG_Calculation_basing_HeartPy.py): 
 This file handles the processing of denoised signals using HeartPy and also measures the difference between PPG-derived and ECG-derived HRV metrics.
+
+### Usage Guide
+#### ECG
+```` python
+from ECG_Calculation_basing_HeartPy import ECGAnalyzer
+# Initialize processor
+processor = ECGAnalyzer(window_data_dir='path/to/window/data')
+````
+#### PPG
+```` python
+from PPG_Calculation_basing_HeartPy import PPGAnalyzer
+# Initialize analyzer
+analyzer = PPGAnalyzer(window_dir='path/to/window/data')
+````

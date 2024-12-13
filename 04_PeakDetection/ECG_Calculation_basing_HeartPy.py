@@ -42,7 +42,7 @@ from heartpy.filtering import remove_baseline_wander, filter_signal
 from heartpy.preprocessing import enhance_ecg_peaks
 from typing import Tuple, Optional
 
-class TrueECGProcessor:
+class ECGAnalyzer:
     def __init__(self, window_data_dir: str):
         """
         Initialize the processor with exact same parameters as WINDOW_ECG
@@ -348,7 +348,7 @@ class TrueECGProcessor:
 def main():
     from config import BASE_DIR
     window_data_dir = os.path.join(BASE_DIR, 'WindowData')
-    processor = TrueECGProcessor(window_data_dir)
+    processor = ECGAnalyzer(window_data_dir)
     processor.process_all_participants()
 
 if __name__ == '__main__':
