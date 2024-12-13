@@ -1,13 +1,13 @@
 # GalaxyPPG Supplementary Code
 This repository contains tools and scripts for processing and analyzing the GalaxyPPG dataset, focusing on PPG signal processing and heart rate variability analysis.
-# Dataset Completeness Analysis
-Located in [00_DatasetCompletenessAnalysis](00_DatasetCompletenessAnalysis), this section contains scripts for assessing dataset completeness:
+## 01 Dataset Completeness Analysis
+Located in [00_DatasetCompletenessAnalysis](01_DatasetCompletenessAnalysis), this section contains scripts for assessing dataset completeness:
 
-### [00_MissingRate.py](00_RawDataCheck%2F00_MissingRate.py): 
+### [MissingRate.py](00_RawDataCheck%2F00_MissingRate.py): 
 
 Calculates and analyzes missing data rates across all signals
 
-### [01_SamplingRate.py](00_DatasetCompletenessAnalysis%2F01_SamplingRate.py):
+### [SamplingRate.py](01_DatasetCompletenessAnalysis%2FSamplingRate.py):
 
 Validates and analyzes sampling rates across device signals
 
@@ -20,12 +20,12 @@ Device-specific analyzers:
 
 SamplingRateAnalyzer: Main coordinator class managing device analyzers
 
-# Pre Processing
+## 02 Pre Processing
 
-Located in [01_PreProcessing](01_PreProcessing), this section handles signal segmentation:
-## Segmentation
+Located in [01_PreProcessing](02_PreProcessing), this section handles signal segmentation:
 
-[00_Window_Segment.py](01_PreProcessing%2F00_Window_Segment.py): Implements windowed segmentation of physiological signals
+### [Window_Segment.py](02_PreProcessing%2FWindow_Segment.py): 
+Implements windowed segmentation of physiological signals
 
 Configurable parameters:
 
@@ -35,35 +35,24 @@ window_step: Sliding step between consecutive windows (default: 2 seconds)
 
 Outputs a CSV file containing segmented signals for all modalities
 
+## 03 Denoising 
 
-
-# Denoising 
-
-## IMAT
-
-[IMAT_GalaxyDenosing.py](02_Denosing%2FIMAT_GalaxyDenosing.py): 
+### [IMAT_GalaxyDenosing.py](02_Denosing%2FIMAT_GalaxyDenosing.py): 
 
 Implements the Iterative Method with Adaptive Thresholding (IMAT) approach for motion artifact reduction, based on spectral analysis and sparse signal reconstruction
-## Wiener
-[Wiener_GalaxyDenosing.py](02_Denosing%2FWiener_GalaxyDenosing.py): 
-
+### [Wiener_GalaxyDenosing.py](02_Denosing%2FWiener_GalaxyDenosing.py): 
 Provides the Wiener filtering implementation with adaptive noise estimation for PPG signals during physical activity
-## Kalman
-[Kalman_GalaxyDenoising.py](02_Denosing%2FKalman_GalaxyDenoising.py): 
-
+### [Kalman_GalaxyDenoising.py](02_Denosing%2FKalman_GalaxyDenoising.py): 
 Contains the Kalman filter implementation for adaptive motion artifact reduction
-## SVD
-[SVD_GalaxyDenosing.py](02_Denosing%2FSVD_GalaxyDenosing.py): 
-
+### [SVD_GalaxyDenosing.py](02_Denosing%2FSVD_GalaxyDenosing.py): 
 Implements Singular Value Decomposition-based signal decomposition for artifact removal
-
-## Usage Guide( Taking IMAT as Example )
-### Initialize the denoiser
+### Usage Guide( Taking IMAT as Example )
+#### Initialize the denoiser
 ```python
 from denoising.imat import IMATDenoising
 denoiser = IMATDenoising()
 ```
-### Process the signal
+#### Process the signal
 ```python
 ### For Galaxy Watch data (25Hz)
 denoised_signal, heart_rate = denoiser.process_galaxy(
@@ -90,16 +79,12 @@ Temko et al. (2017) - Wiener filtering approach
 Seyedtabaii & Seyedtabaii (2008) - Kalman filtering method
 
 Reddy et al. (2008) - SVD-based artifact reduction
-# ECG & PPG Peak Detection -> HRV
+# 04 Peak Detection
 
-Located in [03_PeakDetection](03_PeakDetection)
-[00_ECG_Calculation_basing_HeartPy.py](03_PeakDetection%2F00_ECG_Calculation_basing_HeartPy.py): 
-
+Located in [04_PeakDetection](04_PeakDetection):
+### [ECG_Calculation_basing_HeartPy.py](04_PeakDetection%2FECG_Calculation_basing_HeartPy.py): 
 Calculates HRV metrics from ECG signals using HeartPy
-
 Utilizes customized bandpass filtering parameters from [filter_parameters](01_WindowSegment%2Ffilter_parameters)
-
-[01_PPG_Calculation_basing_HeartPy.py](03_PeakDetection%2F01_PPG_Calculation_basing_HeartPy.py): 
-
-handles the processing of denoised signals using HeartPy
+### [PPG_Calculation_basing_HeartPy.py](04_PeakDetection%2FPPG_Calculation_basing_HeartPy.py): 
+Handles the processing of denoised signals using HeartPy
 It also measures the difference between PPG-derived and ECG-derived HRV metrics
