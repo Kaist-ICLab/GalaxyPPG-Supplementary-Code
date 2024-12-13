@@ -5,11 +5,11 @@ Located in [01_DatasetCompletenessAnalysis](01_DatasetCompletenessAnalysis), thi
 
 ### [MissingRate.py](00_RawDataCheck%2F00_MissingRate.py): 
 
-This file calculates and analyzes missing data rates across all signals
+This file calculates and analyzes missing data rates across all signals.
 
 ### [SamplingRate.py](01_DatasetCompletenessAnalysis%2FSamplingRate.py):
 
-This file validates and analyzes sampling rates across device signals
+This file validates and analyzes sampling rates across device signals.
 
 - BaseSamplingAnalyzer: Abstract base class defining core analysis methods
 
@@ -25,10 +25,10 @@ This file validates and analyzes sampling rates across device signals
 ``` python
 from SamplingRate import OverallSamplingRateAnalyzer
 
-# Create analyzer instance
+# Create an analyzer instance
 analyzer = OverallSamplingRateAnalyzer()
 
-# Process all participants
+# Process all participant's
 analyzer.process_all_participants()
 
 # Process specific participant
@@ -84,7 +84,7 @@ This file implements windowed segmentation of physiological signals.
   - window_size: Duration of each analysis window (default: 8 seconds)
   - window_step: Sliding step between consecutive windows (default: 2 seconds)
 
-And it outputs a CSV file containing segmented signals for all modalities.
+It outputs a CSV file containing segmented signals for all modalities.
 
 ## 03 Denoising 
 
