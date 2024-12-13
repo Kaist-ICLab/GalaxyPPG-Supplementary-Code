@@ -28,12 +28,11 @@ Located in [02_PreProcessing](02_PreProcessing), this section handles signal seg
 ### [Window_Segment.py](02_PreProcessing%2FWindow_Segment.py): 
 This file implements windowed segmentation of physiological signals.
 
-Configurable parameters:
-- window_size: Duration of each analysis window (default: 8 seconds)
+- Configurable parameters:
+  - window_size: Duration of each analysis window (default: 8 seconds)
+  - window_step: Sliding step between consecutive windows (default: 2 seconds)
 
-- window_step: Sliding step between consecutive windows (default: 2 seconds)
-
-And it outputs a CSV file containing segmented signals for all modalities
+And it outputs a CSV file containing segmented signals for all modalities.
 
 ## 03 Denoising 
 
@@ -81,10 +80,9 @@ This implementation draws from the following foundational works:
 - Reddy et al. (2008) - SVD-based artifact reduction
 # 04 Peak Detection
 
-Located in [04_PeakDetection](04_PeakDetection)
+Located in [04_PeakDetection](04_PeakDetection).
 ### [ECG_Calculation_basing_HeartPy.py](04_PeakDetection%2FECG_Calculation_basing_HeartPy.py): 
-This file calculates HRV metrics from ECG signals using HeartPy
+This file calculates HRV metrics from ECG signals using HeartPy.
 And it utilizes customized bandpass filtering parameters from [filter_parameters](01_WindowSegment%2Ffilter_parameters)
 ### [PPG_Calculation_basing_HeartPy.py](04_PeakDetection%2FPPG_Calculation_basing_HeartPy.py): 
-This file handles the processing of denoised signals using HeartPy
-It also measures the difference between PPG-derived and ECG-derived HRV metrics
+This file handles the processing of denoised signals using HeartPy and also measures the difference between PPG-derived and ECG-derived HRV metrics.
