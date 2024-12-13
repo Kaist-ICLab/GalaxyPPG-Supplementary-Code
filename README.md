@@ -18,8 +18,60 @@ This file validates and analyzes sampling rates across device signals
   - E4Analyzer
   - PolarH10Analyzer
 
-
 - SamplingRateAnalyzer: Main coordinator class managing device analyzers
+
+
+### Basic Usage:
+``` python
+from SamplingRate import OverallSamplingRateAnalyzer
+
+# Create analyzer instance
+analyzer = OverallSamplingRateAnalyzer()
+
+# Process all participants
+analyzer.process_all_participants()
+
+# Process specific participant
+analyzer.process_specific_participant("P01")
+```
+### Device-Specific Analyzers Usage Examples
+```python
+# Galaxy Watch Analyzer
+from SamplingRate import GalaxyWatchAnalyzer
+
+galaxy_analyzer = GalaxyWatchAnalyzer()
+# Expected sampling rates:
+# PPG: 25Hz
+# ACC: 25Hz
+# HR: 1Hz
+# Skin Temperature: 1/60Hz (once per minute)
+
+# E4 Analyzer
+from SamplingRate import E4Analyzer
+
+e4_analyzer = E4Analyzer()
+# Expected sampling rates:
+# BVP: 64Hz
+# ACC: 32Hz
+# Temperature: 4Hz
+# HR: 1Hz
+
+# Polar H10 Analyzer
+from SamplingRate import PolarH10Analyzer
+
+polar_analyzer = PolarH10Analyzer()
+# Expected sampling rates:
+# ECG: 130Hz
+# ACC: 200Hz
+# HR: 1Hz
+```
+
+The analyzer generates reports in the SamplingRateAnalysis directory:
+- detailed_sampling_analysis.csv: Detailed sampling data
+- sampling_rate_summary.csv: Summary by device and signal type
+- session_sampling_summary.csv: Session-wise analysis
+- data_availability_report.csv: Data availability issues
+
 
 ## 02 Pre Processing
 
@@ -83,6 +135,6 @@ This implementation draws from the following foundational works:
 Located in [04_PeakDetection](04_PeakDetection).
 ### [ECG_Calculation_basing_HeartPy.py](04_PeakDetection%2FECG_Calculation_basing_HeartPy.py): 
 This file calculates HRV metrics from ECG signals using HeartPy.
-And it utilizes customized bandpass filtering parameters from [filter_parameters](01_WindowSegment%2Ffilter_parameters)
+And it utilizes customized bandpass filtering parameters from [filter_parameters](01_WindowSegment%2Ffilter_parameters).
 ### [PPG_Calculation_basing_HeartPy.py](04_PeakDetection%2FPPG_Calculation_basing_HeartPy.py): 
 This file handles the processing of denoised signals using HeartPy and also measures the difference between PPG-derived and ECG-derived HRV metrics.

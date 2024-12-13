@@ -11,6 +11,7 @@ class WindowProcessor:
         self.output_path = os.path.join(BASE_DIR, 'WindowData')
         if not os.path.exists(self.output_path):
             os.makedirs(self.output_path)
+        # Parameters to define the window segment period
         self.window_size = 8000
         self.window_step = 2000
 

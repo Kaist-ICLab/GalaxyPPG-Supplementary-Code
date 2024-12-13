@@ -5,9 +5,8 @@ from typing import Dict, List, Optional
 from abc import ABC, abstractmethod
 from config import BASE_DIR, RAW_DIR
 
-class SamplingRateAnalyzer:
+class OverallSamplingRateAnalyzer:
     """Main analyzer class that coordinates device-specific analyzers"""
-
     def __init__(self):
         self.analyzers = {
             'galaxy': GalaxyWatchAnalyzer(),
@@ -396,8 +395,12 @@ class PolarH10Analyzer(BaseSamplingAnalyzer):
 
 def main():
     try:
-        analyzer = SamplingRateAnalyzer()
+        analyzer = OverallSamplingRateAnalyzer()
         analyzer.process_all_participants()
+        # Example Galaxy
+        # analyzer = GalaxyWatchAnalyzer()
+        # Specific Participant
+        # analyzer.process_specific_participant()
     except Exception as e:
         print(f"Error in main execution: {str(e)}")
         import traceback
