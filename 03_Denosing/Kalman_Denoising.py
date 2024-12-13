@@ -5,7 +5,7 @@ import os
 from config import RESULTS_DIR, WINDOW_DIR
 
 
-class PPGDenoising:
+class KalmanDenoising:
     def __init__(self, device_type='galaxy'):
 
         if device_type == 'galaxy':
@@ -224,8 +224,8 @@ def process_dataset():
     result_dir = os.path.join(RESULTS_DIR, 'Kalman')
     os.makedirs(result_dir, exist_ok=True)
 
-    denoiser_galaxy = PPGDenoising(device_type='galaxy')
-    denoiser_e4 = PPGDenoising(device_type='e4')
+    denoiser_galaxy = KalmanDenoising(device_type='galaxy')
+    denoiser_e4 = KalmanDenoising(device_type='e4')
 
     all_results = {
         'galaxy': {'hr_errors': [], 'quality_scores': []},

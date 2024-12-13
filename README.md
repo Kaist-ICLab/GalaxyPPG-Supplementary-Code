@@ -1,26 +1,42 @@
-# GalaxyPPG Supplementary Code
-This repository contains tools and scripts for processing and analyzing the GalaxyPPG dataset, focusing on PPG signal processing and heart rate variability analysis.
+# GalaxyPPG Supplementary Code 
+### Welcome to the GalaxyPPG Supplementary Code repository. 
+
+This repository provides supplementary code for the GalaxyPPG dataset paper, 
+demonstrating basic processing pipelines and potential use cases. 
+The code implementations are for demonstration and reproducibility purposes only, 
+and not represent optimal solutions for ECG and PPG signal processing. 
+### We encourage researchers to develop and apply more advanced algorithms using this dataset.
+The provided code assists in data completeness checks, pre-processing, denoising, and peak detection, helping researchers efficiently navigate and analyze the dataset.
+# Installation
+```bash
+git clone https://github.com/Kaist-ICLab/GalaxyPPG-Supplementary-Code.git
+cd GalaxyPPG-Supplementary-Code
+pip install -r requirements.txt
+```
+# Repository Structure
+- 01 Dataset Completeness Analysis
+- 02 Pre-Processing
+- 03 Denoising
+- 04 Peak Detection
 ## 01 Dataset Completeness Analysis
 Located in [01_DatasetCompletenessAnalysis](01_DatasetCompletenessAnalysis), this section contains scripts for assessing dataset completeness.
-
 ### [MissingRate.py](00_RawDataCheck%2F00_MissingRate.py): 
-
-This file calculates and analyzes missing data rates across all signals.
-
+- Purpose: Calculate and analyze missing data rates across all signals.
+- Expected Output: A summary CSV file indicating the percentage of missing data per participant and device signal.
 ### [SamplingRate.py](01_DatasetCompletenessAnalysis%2FSamplingRate.py):
-
-This file validates and analyzes sampling rates across device signals.
-
+- Purpose: Validate and analyze sampling rates for each device’s signals.
+- Expected Outputs:
+  - detailed_sampling_analysis.csv: Detailed per-session sampling info.
+  - sampling_rate_summary.csv: Summary of observed vs. expected sampling rates.
+  - session_sampling_summary.csv: Session-level statistics.
+  - data_availability_report.csv: Highlights any data availability issues.
+### Key Classes:
 - BaseSamplingAnalyzer: Abstract base class defining core analysis methods
-
 - Device-specific analyzers:
   - GalaxyWatchAnalyzer 
   - E4Analyzer
   - PolarH10Analyzer
-
-- SamplingRateAnalyzer: Main coordinator class managing device analyzers
-
-
+- OverallSamplingRateAnalyzer: Main coordinator class managing device analyzers
 ### Basic Usage:
 ``` python
 from SamplingRate import OverallSamplingRateAnalyzer
@@ -65,54 +81,41 @@ polar_analyzer = PolarH10Analyzer()
 # ACC: 200Hz
 # HR: 1Hz
 ```
-
-The analyzer generates reports in the SamplingRateAnalysis directory:
-- detailed_sampling_analysis.csv: Detailed sampling data
-- sampling_rate_summary.csv: Summary by device and signal type
-- session_sampling_summary.csv: Session-wise analysis
-- data_availability_report.csv: Data availability issues
-
-
 ## 02 Pre Processing
 
 Located in [02_PreProcessing](02_PreProcessing), this section handles signal segmentation.
 
 ### [Window_Segment.py](02_PreProcessing%2FWindow_Segment.py): 
-This file implements windowed segmentation of physiological signals.
+Purpose: Segment signals into fixed-length windows for downstream analysis.
+
+Expected Outputs: A CSV file containing segmented signals (PPG, ECG, ACC) for each participant and session.
 
 - Configurable parameters:
   - window_size: Duration of each analysis window (default: 8 seconds)
   - window_step: Sliding step between consecutive windows (default: 2 seconds)
-
-It outputs a CSV file containing segmented signals for all modalities.
-
 ## 03 Denoising 
+Located in [03_Denosing](03_Denosing), this section handles signal denosing.
 
-### [IMAT_GalaxyDenosing.py](02_Denosing%2FIMAT_GalaxyDenosing.py): 
+For optimal performance, we recommend referring to the original papers for algorithm details and considering state-of-the-art approaches in the field.
+
+### [IMAT_Denosing.py](03_Denosing%2FIMAT_Denosing.py)
 
 This file implements the Iterative Method with Adaptive Thresholding (IMAT) approach for motion artifact reduction, based on spectral analysis and sparse signal reconstruction
-### [Wiener_GalaxyDenosing.py](02_Denosing%2FWiener_GalaxyDenosing.py): 
-This file provides the Wiener filtering implementation with adaptive noise estimation for PPG signals during physical activity
-### [Kalman_GalaxyDenoising.py](02_Denosing%2FKalman_GalaxyDenoising.py): 
-This file contains the Kalman filter implementation for adaptive motion artifact reduction
-### [SVD_GalaxyDenosing.py](02_Denosing%2FSVD_GalaxyDenosing.py): 
-This file implements Singular Value Decomposition-based signal decomposition for artifact removal
-### Usage Guide( Taking IMAT as Example )
-#### Initialize the denoiser
+### Usage Guide
 ```python
 from denoising.imat import IMATDenoising
+# Initialize the denoiser
 denoiser = IMATDenoising()
-```
-#### Process the signal
-```python
-### For Galaxy Watch data (25Hz)
+
+# Process Galaxy Watch data (25Hz sampling rate)
 denoised_signal, heart_rate = denoiser.process_galaxy(
-    ppg_signal,    # Raw PPG signal array
-    acc_x,         # X-axis acceleration array
+    ppg_signal,    # PPG signal array
+    acc_x,         # X-axis acceleration array 
     acc_y,         # Y-axis acceleration array
     acc_z          # Z-axis acceleration array
 )
-### For E4 data (64Hz)
+
+# Process E4 data (64Hz sampling rate)
 denoised_signal, heart_rate = denoiser.process_e4(
     bvp_signal,    # BVP signal array
     acc_x,         # X-axis acceleration array
@@ -120,7 +123,62 @@ denoised_signal, heart_rate = denoiser.process_e4(
     acc_z          # Z-axis acceleration array
 )
 ```
+### [Wiener_Denosing.py](03_Denosing%2FWiener_Denosing.py)
+This file provides the Wiener filtering implementation with adaptive noise estimation for PPG signals during physical activity
+### Usage Guide
+```` python
+from denoising.wiener import WienerDenoising
 
+# Initialize the denoiser
+denoiser = WienerDenoising()
+
+# Process Galaxy Watch data
+denoised_signal, heart_rate = denoiser.process_galaxy(
+    ppg,           # Raw PPG signal
+    acc_x, acc_y, acc_z  # Tri-axial acceleration data
+)
+
+# Process E4 data 
+denoised_signal, heart_rate = denoiser.process_e4(
+    ppg,           # Raw PPG signal
+    acc_x, acc_y, acc_z  # Tri-axial acceleration data
+)
+````
+### [Kalman_Denoising.py](03_Denosing%2FKalman_Denoising.py)
+This file contains the Kalman filter implementation for adaptive motion artifact reduction
+### Usage Guide
+```` python
+from denoising.kalman import KalmanDenoising
+
+# Initialize with device specification
+denoiser = KalmanDenoising(device_type='galaxy')  # or 'e4'
+
+# Process signal
+result = denoiser.process_signal(
+    ppg,           # PPG signal
+    acc_data       # Acceleration data (n x 3 array)
+)
+
+denoised_signal = result['denoised_signal']
+heart_rate = result['heart_rate']
+```` 
+### [SVD_Denosing.py](03_Denosing%2FSVD_Denosing.py)
+This file implements Singular Value Decomposition-based signal decomposition for artifact removal
+### Usage Guide
+```` python
+from denoising.svd import SVDDenoising
+
+# Initialize the denoiser
+denoiser = SVDDenoising()
+
+# Process data
+denoised = denoiser.denoise(
+    ppg,           # PPG signal
+    acc_x, acc_y, acc_z,  # Tri-axial acceleration data
+    fs             # Sampling rate (25 for Galaxy Watch, 64 for E4)
+)
+```` 
+## REF
 This implementation draws from the following foundational works:
 
 - Mashhadi et al. (2015) - IMAT algorithm
@@ -131,8 +189,9 @@ This implementation draws from the following foundational works:
 
 - Reddy et al. (2008) - SVD-based artifact reduction
 # 04 Peak Detection
-
 Located in [04_PeakDetection](04_PeakDetection).
+This section uses the HeartPy toolkit (https://python-heart-rate-analysis-toolkit.readthedocs.io/en/latest/) to detect peaks and compute HR/HRV metrics.
+
 ### [ECG_Calculation_basing_HeartPy.py](04_PeakDetection%2FECG_Calculation_basing_HeartPy.py): 
 This file calculates HRV metrics from ECG signals using HeartPy.
 And it utilizes customized bandpass filtering parameters from [filter_parameters](01_WindowSegment%2Ffilter_parameters).
@@ -144,7 +203,7 @@ This file handles the processing of denoised signals using HeartPy and also meas
 ```` python
 from ECG_Calculation_basing_HeartPy import ECGAnalyzer
 # Initialize processor
-processor = ECGAnalyzer(window_data_dir='path/to/window/data')
+analyzer = ECGAnalyzer(window_data_dir='path/to/window/data')
 ````
 #### PPG
 ```` python
