@@ -20,22 +20,12 @@ class KalmanDenoising:
         self.window_size = 8
 
         self.svd_threshold = 0.4
-
         self.signal_Q = 0.1
         self.signal_R = 1.0
         self.x_state = None
         self.P_state = None
         self.hr_min = 40
         self.hr_max = 200
-
-    def resample_accelerometer(self, acc_data):
-        if self.device_type == 'e4':
-            target_length = int(len(acc_data) * self.ppg_fs / self.acc_fs)
-            resampled_acc = np.zeros((target_length, 3))
-            for i in range(3):
-                resampled_acc[:, i] = resample(acc_data[:, i], target_length)
-            return resampled_acc
-        return acc_data
 
     def bandpass_filter(self, signal):
         nyquist = self.ppg_fs * 0.5
@@ -144,11 +134,9 @@ class KalmanDenoising:
 
         return self.x_state[0]
 
-    def kalman_denoising(self, svd_signal, acc_x, acc_y, acc_z):
+    def kalman_smooth(self, svd_signal, acc_x, acc_y, acc_z):
         self.initialize_kalman(svd_signal)
-
         acc_magnitude = np.sqrt(acc_x ** 2 + acc_y ** 2 + acc_z ** 2)
-
         kalman_signal = np.zeros_like(svd_signal)
         for i in range(len(svd_signal)):
             kalman_signal[i] = self.kalman_step(svd_signal[i], acc_magnitude[i])
@@ -188,25 +176,20 @@ class KalmanDenoising:
 
         ppg = self.normalize_signal(ppg)
         acc_data = np.apply_along_axis(self.normalize_signal, 0, acc_data)
-
-        acc_resampled = self.resample_accelerometer(acc_data)
-
         filtered_signal = self.bandpass_filter(ppg)
-
-        acc_magnitude = np.sqrt(np.sum(acc_resampled ** 2, axis=1))
 
         svd_signal = self.svd_denoising(
             filtered_signal,
-            acc_resampled[:, 0],
-            acc_resampled[:, 1],
-            acc_resampled[:, 2]
+            acc_data[:, 0],
+            acc_data[:, 1],
+            acc_data[:, 2]
         )
 
-        final_signal = self.kalman_denoising(
+        final_signal = self.kalman_smooth(
             svd_signal,
-            acc_resampled[:, 0],
-            acc_resampled[:, 1],
-            acc_resampled[:, 2]
+            acc_data[:, 0],
+            acc_data[:, 1],
+            acc_data[:, 2]
         )
 
         hr = self.estimate_heart_rate(final_signal)
