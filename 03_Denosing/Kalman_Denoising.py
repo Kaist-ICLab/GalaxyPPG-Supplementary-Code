@@ -4,7 +4,6 @@ from scipy.signal import butter, filtfilt, find_peaks, resample
 import os
 from config import RESULTS_DIR, WINDOW_DIR
 
-
 class KalmanDenoising:
     def __init__(self, device_type='galaxy'):
 
@@ -14,7 +13,7 @@ class KalmanDenoising:
             self.window_points = 200
         else:
             self.ppg_fs = 64
-            self.acc_fs = 64 # Has benn upsampling
+            self.acc_fs = 64  # Has benn upsampling
             self.window_points = 512
 
         self.device_type = device_type
@@ -158,6 +157,7 @@ class KalmanDenoising:
 
     def normalize_signal(self, signal):
         return (signal - np.mean(signal)) / (np.std(signal) + 1e-10)
+
     def estimate_heart_rate(self, signal):
         window = np.hanning(len(signal))
         windowed_signal = signal * window
@@ -170,9 +170,8 @@ class KalmanDenoising:
         X_masked = X[mask]
         freq_masked = freq[mask]
 
-        peaks, properties = find_peaks(X_masked,
-                                       distance=5,
-                                       prominence=0.1 * np.max(X_masked))
+        peaks, properties = find_peaks(X_masked,distance=5,
+                                            prominence=0.1 * np.max(X_masked))
 
         if len(peaks) > 0:
             peak_hrs = freq_masked[peaks] * 60
@@ -186,7 +185,6 @@ class KalmanDenoising:
         return 75
 
     def process_signal(self, ppg, acc_data):
-
 
         ppg = self.normalize_signal(ppg)
         acc_data = np.apply_along_axis(self.normalize_signal, 0, acc_data)
@@ -204,7 +202,6 @@ class KalmanDenoising:
             acc_resampled[:, 2]
         )
 
-
         final_signal = self.kalman_denoising(
             svd_signal,
             acc_resampled[:, 0],
@@ -212,13 +209,14 @@ class KalmanDenoising:
             acc_resampled[:, 2]
         )
 
-
         hr = self.estimate_heart_rate(final_signal)
 
         return {
             'denoised_signal': final_signal,
             'heart_rate': hr,
-            }
+        }
+
+
 def process_dataset():
     window_data_dir = WINDOW_DIR
     result_dir = os.path.join(RESULTS_DIR, 'Kalman')
@@ -228,8 +226,8 @@ def process_dataset():
     denoiser_e4 = KalmanDenoising(device_type='e4')
 
     all_results = {
-        'galaxy': {'hr_errors': [], 'quality_scores': []},
-        'e4': {'hr_errors': [], 'quality_scores': []}
+        'galaxy': {'hr_errors': []},
+        'e4': {'hr_errors': []}
     }
 
     for filename in os.listdir(window_data_dir):
@@ -241,16 +239,12 @@ def process_dataset():
                 'galaxy': {
                     'denoised_signal': [],
                     'hr': [],
-                    'error': [],
-                    'quality': [],
-                    'processing_time': []
+                    'error': []
                 },
                 'e4': {
                     'denoised_signal': [],
                     'hr': [],
-                    'error': [],
-                    'quality': [],
-                    'processing_time': []
+                    'error': []
                 }
             }
 
@@ -269,23 +263,18 @@ def process_dataset():
                     results['galaxy']['error'].append(
                         abs(galaxy_result['heart_rate'] - row['gdHR'])
                     )
-                    results['galaxy']['quality'].append(
-                        galaxy_result['quality_metrics']['final']['quality_score']
-                    )
 
                     all_results['galaxy']['hr_errors'].append(
                         abs(galaxy_result['heart_rate'] - row['gdHR'])
                     )
-                    all_results['galaxy']['quality_scores'].append(
-                        galaxy_result['quality_metrics']['final']['quality_score']
-                    )
+
 
                 except Exception as e:
                     print(f"Error processing Galaxy data in window {i}: {str(e)}")
                     results['galaxy']['denoised_signal'].append('')
                     results['galaxy']['hr'].append(None)
                     results['galaxy']['error'].append(None)
-                    results['galaxy']['quality'].append(None)
+
 
                 try:
                     e4_ppg = np.array([float(x) for x in row['e4BVP'].split(';')])
@@ -300,15 +289,9 @@ def process_dataset():
                     results['e4']['error'].append(
                         abs(e4_result['heart_rate'] - row['gdHR'])
                     )
-                    results['e4']['quality'].append(
-                        e4_result['quality_metrics']['final']['quality_score']
-                    )
 
                     all_results['e4']['hr_errors'].append(
                         abs(e4_result['heart_rate'] - row['gdHR'])
-                    )
-                    all_results['e4']['quality_scores'].append(
-                        e4_result['quality_metrics']['final']['quality_score']
                     )
 
                 except Exception as e:
@@ -316,17 +299,14 @@ def process_dataset():
                     results['e4']['denoised_signal'].append('')
                     results['e4']['hr'].append(None)
                     results['e4']['error'].append(None)
-                    results['e4']['quality'].append(None)
 
             df['denoisedGalaxy'] = results['galaxy']['denoised_signal']
             df['estimatedHR_Galaxy'] = results['galaxy']['hr']
             df['HR_error_Galaxy'] = results['galaxy']['error']
-            df['quality_Galaxy'] = results['galaxy']['quality']
 
             df['denoisedE4'] = results['e4']['denoised_signal']
             df['estimatedHR_E4'] = results['e4']['hr']
             df['HR_error_E4'] = results['e4']['error']
-            df['quality_E4'] = results['e4']['quality']
 
             output_file = os.path.join(
                 result_dir,
@@ -336,47 +316,28 @@ def process_dataset():
 
             for device in ['galaxy', 'e4']:
                 valid_errors = [e for e in results[device]['error'] if e is not None]
-                valid_quality = [q for q in results[device]['quality'] if q is not None]
 
-                if valid_errors and valid_quality:
+                if valid_errors:
                     print(f"\n{device.upper()} Statistics:")
                     print(f"Mean HR Error: {np.mean(valid_errors):.2f} BPM")
                     print(f"Std HR Error: {np.std(valid_errors):.2f} BPM")
-                    print(f"Mean Quality Score: {np.mean(valid_quality):.2f}")
                     print(f"Windows Processed: {len(valid_errors)}")
 
     stats = {}
     for device in ['galaxy', 'e4']:
         hr_errors = all_results[device]['hr_errors']
-        quality_scores = all_results[device]['quality_scores']
 
-        if hr_errors and quality_scores:
+        if hr_errors:
             stats[device] = {
                 'mean_hr_error': np.mean(hr_errors),
                 'std_hr_error': np.std(hr_errors),
                 'rmse': np.sqrt(np.mean(np.array(hr_errors) ** 2)),
-                'mean_quality': np.mean(quality_scores),
-                'std_quality': np.std(quality_scores),
-                'windows_processed': len(hr_errors),
-                'within_5bpm': np.sum(np.array(hr_errors) <= 5) / len(hr_errors) * 100,
-                'within_10bpm': np.sum(np.array(hr_errors) <= 10) / len(hr_errors) * 100
+                'windows_processed': len(hr_errors)
             }
 
     stats_df = pd.DataFrame.from_dict(stats, orient='index')
     stats_file = os.path.join(result_dir, 'overall_statistics.csv')
     stats_df.to_csv(stats_file)
-
-    print("\nOverall Statistics:")
-    for device in ['galaxy', 'e4']:
-        if device in stats:
-            print(f"\n{device.upper()}:")
-            print(f"Mean HR Error: {stats[device]['mean_hr_error']:.2f} BPM")
-            print(f"Std HR Error: {stats[device]['std_hr_error']:.2f} BPM")
-            print(f"RMSE: {stats[device]['rmse']:.2f} BPM")
-            print(f"Mean Quality Score: {stats[device]['mean_quality']:.2f}")
-            print(f"Within 5 BPM: {stats[device]['within_5bpm']:.2f}%")
-            print(f"Within 10 BPM: {stats[device]['within_10bpm']:.2f}%")
-            print(f"Total Windows: {stats[device]['windows_processed']}")
-
+   
 if __name__ == "__main__":
     process_dataset()
