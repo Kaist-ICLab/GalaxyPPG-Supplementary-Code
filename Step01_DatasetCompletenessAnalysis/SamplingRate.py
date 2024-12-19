@@ -190,6 +190,12 @@ class OverallSamplingRateAnalyzer:
             print("No valid results to generate reports")
 class BaseSamplingAnalyzer(ABC):
     """Base class for sampling rate analysis"""
+    """
+        Abstract base class for sampling rate analysis.
+
+        This class defines the interface for analyzing sampling rates of different
+        wearable devices. Implementations should provide device-specific logic.
+    """
     def __init__(self, device_name: str):
         self.device_name = device_name
         self.output_path = os.path.join(BASE_DIR, 'SamplingRateAnalysis')
@@ -328,7 +334,6 @@ class GalaxyWatchAnalyzer(BaseSamplingAnalyzer):
         return timestamp  # No adjustment needed for Galaxy Watch
 class E4Analyzer(BaseSamplingAnalyzer):
     """E4 specific analyzer"""
-
     def __init__(self):
         super().__init__('e4')
 
@@ -392,7 +397,6 @@ class PolarH10Analyzer(BaseSamplingAnalyzer):
 
     def adjust_timestamp(self, timestamp: pd.Series) -> pd.Series:
         return timestamp - 32400000  # Subtract 9 hours
-
 def main():
     try:
         analyzer = OverallSamplingRateAnalyzer()

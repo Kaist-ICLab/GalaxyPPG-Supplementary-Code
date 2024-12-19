@@ -101,9 +101,9 @@ class WindowProcessor:
             hr_data = self.extract_window_data(
                 data['polar_hr'], window_start, window_end, 'timestamp', ['hr']
             )
-            window_data['trueHR'] = float(np.mean(hr_data)) if hr_data is not None else None
+            window_data['polarHR'] = float(np.mean(hr_data)) if hr_data is not None else None
         except Exception as e:
-            window_data['trueHR'] = None
+            window_data['polarHR'] = None
 
         window_data['isPadded'] = any(v is None for k, v in window_data.items()
                                       if k not in ['participant', 'session', 'windowNumber',
@@ -215,7 +215,7 @@ class WindowProcessor:
                 df = pd.DataFrame(all_windows)
                 columns = [
                     'participant', 'session', 'windowNumber', 'startTime', 'endTime',
-                    'trueHR', 'galaxyPPG', 'galaxyACC', 'e4BVP', 'e4ACC',
+                    'polarHR', 'galaxyPPG', 'galaxyACC', 'e4BVP', 'e4ACC',
                     'polarECG', 'polarACC', 'isPadded'
                 ]
                 df = df.reindex(columns=columns)

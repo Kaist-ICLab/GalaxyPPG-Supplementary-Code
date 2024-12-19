@@ -1,4 +1,5 @@
 import os
+from typing import List
 import pandas as pd
 from scipy.signal import find_peaks, butter, filtfilt
 from config import RESULTS_DIR, WINDOW_DIR
@@ -7,24 +8,107 @@ from scipy import signal
 
 class IMATDenoising:
     def __init__(self):
+        """
+                Initialize the IMAT denoising algorithm with default parameters.
+
+                Attributes
+                ----------
+                fs_galaxy : int
+                    Galaxy Watch sampling frequency (25 Hz)
+                target_length_galaxy : int
+                    Target length for Galaxy Watch signal processing (200 samples)
+                fs_e4_bvp : int
+                    E4 device BVP sampling frequency (64 Hz)
+                target_length_e4 : int
+                    Target length for E4 signal processing (512 samples)
+                fs_e4_acc : int
+                    E4 device accelerometer sampling frequency (32 Hz)
+                window_count : int
+                    Counter for processed windows
+                max_windows : int
+                    Maximum number of windows to process before resizing buffers
+                sample : numpy.ndarray
+                    Buffer for sample storage
+                estimate : numpy.ndarray
+                    Buffer for estimate storage
+                previous_ppg : numpy.ndarray or None
+                    Previous PPG signal for continuity
+                previous_acc_x/y/z : numpy.ndarray or None
+                    Previous accelerometer signals for continuity
+                """
         # Galaxy
         self.fs_galaxy = 25
         self.target_length_galaxy = 200
-
         # E4
         self.fs_e4_bvp = 64
         self.target_length_e4 = 512
         self.fs_e4_acc = 32
-
+        # Pre-Setting
         self.fs = None
+        # Processing parameters
         self.window_count = 0
         self.max_windows = 2000
         self.sample = np.zeros(2000)
         self.estimate = np.zeros(2000)
+        # Signal history
         self.previous_ppg = None
         self.previous_acc_x = None
         self.previous_acc_y = None
         self.previous_acc_z = None
+
+    def process_dataframe(self, df: pd.DataFrame,
+                          ppg_col: str = 'ppg',
+                          acc_cols: List[str] = ['acc_x', 'acc_y', 'acc_z'],
+                          device_type: str = 'galaxy') -> pd.DataFrame:
+        """
+        Process PPG and accelerometer data from a DataFrame.
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+            Input DataFrame containing PPG and accelerometer data
+        ppg_col : str, default='ppg'
+            Name of the column containing PPG data
+        acc_cols : list of str, default=['acc_x', 'acc_y', 'acc_z']
+            Names of columns containing accelerometer data
+        device_type : str, default='galaxy'
+            Type of device ('galaxy' or 'e4')
+
+        Returns
+        -------
+        pandas.DataFrame
+            DataFrame with added columns for denoised signal and heart rate
+        """
+        if ppg_col not in df.columns:
+            raise ValueError(f"PPG column '{ppg_col}' not found in DataFrame")
+        for col in acc_cols:
+            if col not in df.columns:
+                raise ValueError(f"Accelerometer column '{col}' not found in DataFrame")
+
+        results = []
+        for _, row in df.iterrows():
+            try:
+                ppg = np.array(row[ppg_col])
+                acc = [np.array(row[col]) for col in acc_cols]
+
+                if device_type.lower() == 'galaxy':
+                    denoised, hr = self.process_galaxy(ppg, *acc)
+                else:
+                    denoised, hr = self.process_e4(ppg, *acc)
+
+                results.append({
+                    'denoised_signal': ';'.join(map(str, denoised)),
+                    'heart_rate': hr
+                })
+            except Exception as e:
+                print(f"Error processing row: {str(e)}")
+                results.append({
+                    'denoised_signal': None,
+                    'heart_rate': None
+                })
+
+        result_df = pd.concat([df, pd.DataFrame(results)], axis=1)
+        return result_df
 
     def process_galaxy(self, ppg, acc_x, acc_y, acc_z):
         self.fs = self.fs_galaxy
@@ -812,7 +896,7 @@ def process_dataset(participant_range=None, participant_list=None):
                     results['BPM_error_E4'][i] = abs(e4_bpm - true_hr)
 
                 except Exception as e:
-                    print(f"处 {str(e)}")
+                    print(f" {str(e)}")
                     continue
 
             for col, values in results.items():
@@ -825,14 +909,6 @@ def process_dataset(participant_range=None, participant_list=None):
 
             for device in ['Galaxy', 'E4']:
                 valid_errors = [e for e in results[f'BPM_error_{device}'] if e is not None]
-
-                if valid_errors:
-                    mean_error = np.mean(valid_errors)
-                    std_error = np.std(valid_errors)
-                    min_error = np.min(valid_errors)
-                    max_error = np.max(valid_errors)
-                    median_error = np.median(valid_errors)
-
 
         except Exception as e:
             print(f"{str(e)}")

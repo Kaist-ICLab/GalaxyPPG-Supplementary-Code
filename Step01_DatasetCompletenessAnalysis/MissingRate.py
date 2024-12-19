@@ -4,8 +4,15 @@ import numpy as np
 from typing import Dict, List, Tuple
 from config import BASE_DIR, RAW_DIR
 
-class SignalQualityAnalyzer:
+class MissingRateAnalyzer:
+    """
+        Analyzer for assessing signal quality and missing data in PPG recordings.
+
+        This class provides functionality to analyze the quality and completeness of
+        physiological signals from different wearable devices (Galaxy Watch, E4, Polar H10).
+    """
     def __init__(self):
+        # Initialize dictionaries with descriptions for Galaxy PPG and HR status codes
         self.galaxy_ppg_status_desc = {
             -999: "Higher priority sensor operating",
             0: "Normal value",
@@ -23,12 +30,20 @@ class SignalQualityAnalyzer:
             1: "Successful measurement"
         }
 
-        self.output_path = os.path.join(BASE_DIR, 'SignalQualityAnalysis')
+        self.output_path = os.path.join(BASE_DIR, 'MissingRateAnalysis')
         if not os.path.exists(self.output_path):
             os.makedirs(self.output_path)
-
     def check_signal_quality(self, signal_data: np.ndarray, signal_type: str) -> Tuple[float, Dict]:
+        """
+                Check the quality of different types of signals (PPG, ECG, ACC, HR).
 
+                Args:
+                    signal_data (np.ndarray): The signal data to analyze.
+                    signal_type (str): Type of signal ('PPG', 'ECG', 'ACC', 'HR').
+
+                Returns:
+                    Tuple: Missing rate percentage and a dictionary of quality metrics.
+        """
         total_samples = len(signal_data)
         nan_count = np.sum(np.isnan(signal_data))
         zero_count = np.sum(signal_data == 0)
@@ -68,8 +83,16 @@ class SignalQualityAnalyzer:
         missing_rate = (nan_count + zero_count) / total_samples * 100
 
         return missing_rate, quality_metrics
-
     def analyze_participant(self, participant: str) -> Dict:
+        """
+              Analyze the signal quality for a single participant.
+
+              Args:
+                  participant (str): The participant's folder name.
+
+              Returns:
+                  Dict: Analysis results for different devices and signals.
+              """
         participant_path = os.path.join(RAW_DIR, participant)
         results = {'participant': participant, 'galaxy': {}}
 
@@ -245,8 +268,10 @@ class SignalQualityAnalyzer:
             results['polar'] = None
 
         return results
-
     def analyze_all_participants(self):
+        """
+                Analyze the signal quality for all participants in the data directory.
+        """
         participants = [d for d in os.listdir(RAW_DIR)
                         if os.path.isdir(os.path.join(RAW_DIR, d))
                         and d.startswith('P')]
@@ -262,8 +287,14 @@ class SignalQualityAnalyzer:
 
         self.save_results(all_results)
         return all_results
-
     def save_results(self, all_results: List[Dict]):
+        """
+               Save the summarized and detailed results to CSV files.
+
+               Args:
+                   all_results (List[Dict]): List of results for each participant.
+       """
+
         device_stats = {
             'galaxy': {'ppg': [], 'acc': [], 'hr': []},
             'e4': {'bvp': [], 'acc': [], 'hr': []},
@@ -352,12 +383,9 @@ class SignalQualityAnalyzer:
 
         detailed_df = pd.DataFrame(detailed_results)
         detailed_df.to_csv(os.path.join(self.output_path, 'signal_quality_detailed.csv'), index=False)
-
-
 def main():
-    analyzer = SignalQualityAnalyzer()
+    analyzer = MissingRateAnalyzer()
     results = analyzer.analyze_all_participants()
-    print("Analysis completed. Results saved in SignalQualityAnalysis directory.")
-
+    print("Analysis completed. Results saved in MissingRateAnalysis directory.")
 if __name__ == "__main__":
     main()

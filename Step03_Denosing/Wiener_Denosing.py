@@ -1,3 +1,5 @@
+from typing import List
+
 import numpy as np
 from scipy import signal
 from scipy.fft import fft, ifft
@@ -34,6 +36,57 @@ class WienerDenoising:
             'prev_bpm_est': [],
             'range_idx': None
         }
+
+    def process_dataframe(self, df: pd.DataFrame,
+                          ppg_col: str = 'ppg',
+                          acc_cols: List[str] = ['acc_x', 'acc_y', 'acc_z'],
+                          device_type: str = 'galaxy') -> pd.DataFrame:
+        """
+        Process PPG and accelerometer data from a DataFrame.
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+            Input DataFrame containing PPG and accelerometer data
+        ppg_col : str, default='ppg'
+            Name of the column containing PPG data
+        acc_cols : list of str, default=['acc_x', 'acc_y', 'acc_z']
+            Names of columns containing accelerometer data
+        device_type : str, default='galaxy'
+            Type of device ('galaxy' or 'e4')
+
+        Returns
+        -------
+        pandas.DataFrame
+            DataFrame with added columns for denoised signal and heart rate
+         """
+
+        # Input validation
+        if ppg_col not in df.columns:
+            raise ValueError(f"PPG column '{ppg_col}' not found in DataFrame")
+        for col in acc_cols:
+            if col not in df.columns:
+                raise ValueError(f"Accelerometer column '{col}' not found in DataFrame")
+
+        # Process data
+        results = []
+        for _, row in df.iterrows():
+            ppg = np.array(row[ppg_col])
+            acc = [np.array(row[col]) for col in acc_cols]
+
+            if device_type.lower() == 'galaxy':
+                denoised, hr = self.process_galaxy(ppg, *acc)
+            else:
+                denoised, hr = self.process_e4(ppg, *acc)
+
+            results.append({
+                'denoised_ppg': denoised,
+                'heart_rate': hr
+            })
+
+        # Add results to DataFrame
+        result_df = pd.concat([df, pd.DataFrame(results)], axis=1)
+        return result_df
 
     def _reset_prev_data(self):
         self.galaxy_prev_data = {

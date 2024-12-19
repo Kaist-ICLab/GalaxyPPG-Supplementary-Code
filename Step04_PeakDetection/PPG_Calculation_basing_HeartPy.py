@@ -1,20 +1,16 @@
-import os
-import traceback
 import pandas as pd
 import numpy as np
 import heartpy as hp
+import os
+import traceback
 from heartpy.filtering import filter_signal
 from heartpy.preprocessing import scale_data
-from typing import Dict,Optional, Tuple
+from typing import Dict, Optional, Tuple
 from collections import defaultdict
-from config import RESULTS_DIR, WINDOW_DIR
-
 
 class PPGAnalyzer:
-    def __init__(self, window_dir: str):
-        """Initialize PPG Analyzer with specific sessions focus"""
-        self.window_dir = window_dir
-
+    def __init__(self):
+        """Initialize PPG Analyzer with processing parameters"""
         # Sampling rates
         self.galaxy_fs = 25  # Galaxy sampling rate
         self.e4_fs = 64  # E4 sampling rate
@@ -49,10 +45,9 @@ class PPGAnalyzer:
                 'iterations': 1
             }
         }
-
     def process_signal(self, signal: np.ndarray, sample_rate: float) -> Tuple[
         Optional[Dict], Optional[Dict], Optional[np.ndarray]]:
-        """Process PPG signal and detect peaks"""
+        """Process PPG signal and detect peaks remains unchanged"""
         try:
             filtered_signal = filter_signal(
                 signal,
@@ -99,13 +94,33 @@ class PPGAnalyzer:
 
             return working_data, measures, scaled_signal
         except Exception as e:
-            print(f"Error in signal processing: {str(e)}")
-            traceback.print_exc()
+            pass
             return None, None, None
+        pass
+
+    def analyze_data(self, df: pd.DataFrame) -> Dict:
+        """
+        Analyze PPG data from DataFrame
+
+        Args:
+            df: DataFrame containing PPG and ground truth data
+
+        Returns:
+            Dict: Analysis results for all sessions
+        """
+        all_results = {}
+
+        for session in self.target_sessions:
+            if session in df['session'].unique():
+                session_results = self.analyze_session_data(df, session)
+                if session_results:
+                    all_results[session] = session_results
+
+        return all_results
 
     def post_process_peaks(self, signal: np.ndarray, peaks: np.ndarray, sample_rate: float) -> np.ndarray:
         """
-        Enhanced peak detection post-processing with improved missing peak detection
+        Enhanced peak detection post-processing with improved missing peak detection algorithm
         Args:
             signal: Input PPG signal array
             peaks: Initially detected peak indices
@@ -113,36 +128,46 @@ class PPGAnalyzer:
         Returns:
             np.ndarray: Refined peak indices
         """
+        # Return original peaks if less than 2 peaks detected
         if len(peaks) < 2:
             return np.array(peaks, dtype=np.int64)
 
         peaks = np.array(peaks, dtype=np.int64)
 
-        # Parameters
-        MIN_INTERVAL = int(0.2 * sample_rate)
-        MAX_INTERVAL = int(1.5 * sample_rate)
-        SEARCH_WINDOW = int(0.3 * sample_rate)
+        # Initialize physiological parameters based on cardiac timing
+        MIN_INTERVAL = int(0.2 * sample_rate)  # Minimum allowed interval between peaks (200ms)
+        MAX_INTERVAL = int(1.5 * sample_rate)  # Maximum allowed interval between peaks (1.5s)
+        SEARCH_WINDOW = int(0.3 * sample_rate)  # Window size for local peak analysis
 
         def get_peak_characteristics(idx: int) -> Tuple[float, float, bool]:
             """
-            Calculate peak characteristics including prominence and validity
+            Calculate peak prominence, relative height and validity
+            Args:
+                idx: Index position in signal to analyze
+            Returns:
+                Tuple of (prominence, relative_height, is_valid_peak)
             """
             if idx <= 0 or idx >= len(signal) - 1:
                 return 0, 0, False
 
+            # Define analysis window around peak
             left_idx = max(0, idx - SEARCH_WINDOW)
             right_idx = min(len(signal), idx + SEARCH_WINDOW)
             window = signal[left_idx:right_idx]
 
+            # Calculate local statistics
             local_mean = np.mean(window)
             local_std = np.std(window)
 
+            # Calculate peak prominence
             left_min = np.min(signal[left_idx:idx])
             right_min = np.min(signal[idx:right_idx])
             prominence = signal[idx] - max(left_min, right_min)
 
+            # Calculate peak height relative to local signal statistics
             relative_height = (signal[idx] - local_mean) / local_std
 
+            # Check if point is a valid peak
             is_peak = (signal[idx] > signal[idx - 1] and
                        signal[idx] > signal[idx + 1] and
                        relative_height > 0.8)
@@ -150,10 +175,18 @@ class PPGAnalyzer:
             return prominence, relative_height, is_peak
 
         def find_peak_in_range(start_idx: int, end_idx: int) -> Optional[int]:
-
+            """
+            Find most prominent peak within specified range
+            Args:
+                start_idx: Start index of search range
+                end_idx: End index of search range
+            Returns:
+                Index of most prominent peak or None if no valid peak found
+            """
             if end_idx - start_idx < MIN_INTERVAL:
                 return None
 
+            # Calculate local signal statistics
             range_signal = signal[start_idx:end_idx]
             range_mean = np.mean(range_signal)
             range_std = np.std(range_signal)
@@ -162,6 +195,7 @@ class PPGAnalyzer:
             best_peak = None
             best_prominence = 0
 
+            # Search for most prominent peak in range
             for i in range(start_idx + 1, end_idx - 1):
                 if (signal[i] > min_height and
                         signal[i] > signal[i - 1] and
@@ -174,6 +208,7 @@ class PPGAnalyzer:
 
             return best_peak
 
+        # First pass: Filter peaks that are too close together
         filtered_peaks = []
         i = 0
         while i < len(peaks):
@@ -184,6 +219,7 @@ class PPGAnalyzer:
                 i += 1
                 continue
 
+            # Compare with nearby peaks to select most prominent one
             j = i + 1
             while j < len(peaks) and peaks[j] - peaks[i] < MIN_INTERVAL:
                 next_prominence, _, next_is_peak = get_peak_characteristics(peaks[j])
@@ -197,14 +233,17 @@ class PPGAnalyzer:
 
         filtered_peaks = np.array(filtered_peaks)
 
+        # Second pass: Detect missing peaks
         final_peaks = [filtered_peaks[0]]
 
         for i in range(1, len(filtered_peaks)):
             current_interval = filtered_peaks[i] - final_peaks[-1]
 
+            # Check for missing peaks in large intervals
             if current_interval > MAX_INTERVAL:
                 expected_peaks = int(current_interval / (0.6 * sample_rate))
 
+                # Search for missing peaks at expected locations
                 for j in range(1, expected_peaks):
                     expected_pos = final_peaks[-1] + int(j * current_interval / (expected_peaks + 1))
 
@@ -221,6 +260,7 @@ class PPGAnalyzer:
 
             final_peaks.append(filtered_peaks[i])
 
+        # Final validation pass
         validated_peaks = []
         for peak in final_peaks:
             _, _, is_valid = get_peak_characteristics(peak)
@@ -495,105 +535,94 @@ class PPGAnalyzer:
 
         mae_df = pd.DataFrame(mae_rows)
         mae_df.to_csv(os.path.join(output_dir, 'mae_analysis_results.csv'), index=False)
+# Data loading function
+def load_participant_data(window_dir: str, results_dir: str, participant_id: str) -> pd.DataFrame:
+    """
+    Load and merge denoised and ground truth data for a participant
 
-    def process_participant(self, participant_id: str) -> Dict:
-        """Process all target sessions for a participant"""
-        try:
-            # Read denoised signal data
-            denoised_file = os.path.join(RESULTS_DIR, 'SVD', f"{participant_id}_processed_GD_denoised.csv")
-            ground_truth_file = os.path.join(WINDOW_DIR, f"{participant_id}_processed_GD.csv")
+    Args:
+        window_dir: Directory containing ground truth data
+        results_dir: Directory containing denoised data
+        participant_id: Participant ID to process
 
-            print(f"Reading denoised file: {denoised_file}")
-            print(f"Reading ground truth file: {ground_truth_file}")
+    Returns:
+        pd.DataFrame: Merged dataset with both denoised and ground truth data
+    """
+    try:
+        # Read denoised signal data and specify the Denoised algorithm
+        denoised_file = os.path.join(results_dir, 'Wiener', f"{participant_id}_processed_GD_denoised.csv")
+        ground_truth_file = os.path.join(window_dir, f"{participant_id}_processed_GD.csv")
 
-            # Read the files
-            denoised_df = pd.read_csv(denoised_file)
-            ground_truth_df = pd.read_csv(ground_truth_file)
+        # Read the files
+        denoised_df = pd.read_csv(denoised_file)
+        ground_truth_df = pd.read_csv(ground_truth_file)
+        denoised_df['denoisedGalaxy'] = denoised_df['denoisedGalaxy'].astype(str)
+        denoised_df['denoisedE4'] = denoised_df['denoisedE4'].astype(str)
+        # Drop the ground truth columns from denoised data if they exist
+        columns_to_drop = ['gdHR', 'gdIBI', 'gdSDNN', 'gdRMSSD', 'gdPeaks']
+        denoised_df = denoised_df.drop(columns=[col for col in columns_to_drop if col in denoised_df.columns])
 
-            # Drop the ground truth columns from denoised data if they exist
-            columns_to_drop = ['gdHR', 'gdIBI', 'gdSDNN', 'gdRMSSD', 'gdPeaks']
-            denoised_df = denoised_df.drop(columns=[col for col in columns_to_drop if col in denoised_df.columns])
+        # Merge data based on windowNumber and session
+        df = pd.merge(
+            denoised_df,
+            ground_truth_df[['windowNumber', 'session', 'gdHR', 'gdIBI', 'gdSDNN', 'gdRMSSD', 'gdPeaks']],
+            on=['windowNumber', 'session'],
+            how='left'
+        )
 
-            # Merge data based on windowNumber and session
-            df = pd.merge(
-                denoised_df,
-                ground_truth_df[['windowNumber', 'session', 'gdHR', 'gdIBI', 'gdSDNN', 'gdRMSSD', 'gdPeaks']],
-                on=['windowNumber', 'session'],
-                how='left'
-            )
-
-            participant_results = {}
-
-            for session in self.target_sessions:
-                if session in df['session'].unique():
-                    print(f"Processing {participant_id} - {session}")
-                    session_results = self.analyze_session_data(df, session)
-                    participant_results[session] = session_results
-
-            return participant_results
-
-        except Exception as e:
-            print(f"Error processing participant {participant_id}: {str(e)}")
-            traceback.print_exc()
-            return {}
-
-
-    def process_all_data(self) -> Dict:
-            """Process data for all participants"""
-            all_results = {}
-
-            # Get list of all processed_GD files
-            files = [f for f in os.listdir(self.window_dir) if f.endswith('_processed_GD.csv')]
-            # participant_id = 'P02'
-            # print(f"\nProcessing participant: {participant_id}")
-            # try:
-            #     results = self.process_participant(participant_id)
-            #     if results:
-            #         all_results[participant_id] = results
-            # except Exception as e:
-            #     print(f"Error processing {participant_id}: {str(e)}")
-            #     traceback.print_exc()
-            for file in files:
-                participant_id = file.split('_')[0]
-
-                print(f"\nProcessing participant: {participant_id}")
-
-                try:
-                    results = self.process_participant(participant_id)
-                    if results:
-                        all_results[participant_id] = results
-                except Exception as e:
-                    print(f"Error processing {participant_id}: {str(e)}")
-                    traceback.print_exc()
-
-            return all_results
+        return df
+    except Exception as e:
+        print(f"Error loading data for participant {participant_id}: {str(e)}")
+        traceback.print_exc()
+        return pd.DataFrame()
 def print_analysis(results):
-        print("\n=== Per-Session Statistics ===")
-        for session in results:
-            print(f"\n{session}")
-            for device in ['Galaxy', 'E4']:
-                if device in results[session]:
-                    metrics = results[session][device]
-                    print(f"\n{device}:")
-                    for metric, stats in metrics.items():
-                        print(f"{metric}: {stats['mean']:.2f} ± {stats['std']:.2f} (n={stats['count']})")
+    print("\n=== Per-Session Statistics ===")
+    for session in results:
+        print(f"\n{session}")
+        for device in ['Galaxy', 'E4']:
+            if device in results[session]:
+                metrics = results[session][device]
+                print(f"\n{device}:")
+                for metric, stats in metrics.items():
+                    print(f"{metric}: {stats['mean']:.2f} ± {stats['std']:.2f} (n={stats['count']})")
 def main():
     from config import WINDOW_DIR, RESULTS_DIR
-
-    analyzer = PPGAnalyzer(WINDOW_DIR)
+    # Initialize analyzer
+    analyzer = PPGAnalyzer()
     output_dir = os.path.join(RESULTS_DIR, 'session_analysis')
     os.makedirs(output_dir, exist_ok=True)
-    print("Starting data processing...")
-    all_results = analyzer.process_all_data()
-    print("\nSummarizing results...")
+
+    all_results = {}
+
+    # Get list of all processed_GD files
+    files = [f for f in os.listdir(WINDOW_DIR) if f.endswith('_processed_GD.csv')]
+
+    for file in files:
+        participant_id = file.split('_')[0]
+        print(f"\nProcessing participant: {participant_id}")
+
+        try:
+            # Load data
+            df = load_participant_data(WINDOW_DIR, RESULTS_DIR, participant_id)
+            if not df.empty:
+                # Process data
+                results = analyzer.analyze_data(df)
+                if results:
+                    all_results[participant_id] = results
+        except Exception as e:
+            print(f"Error processing {participant_id}: {str(e)}")
+            traceback.print_exc()
+
+    # Summarize and save results
     summary = analyzer.summarize_results(all_results)
-    print("\nSaving results...")
     analyzer.save_results(summary, output_dir)
     print(f"\nAnalysis complete. Results saved to: {output_dir}")
     print("\nSummary Statistics:")
-    # Convert lists to mean values
     print_analysis(summary)
-
 
 if __name__ == "__main__":
     main()
+
+
+
+
