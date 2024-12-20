@@ -23,7 +23,7 @@ Located in [Step01_DatasetCompletenessAnalysis](Step01_DatasetCompletenessAnalys
 - Purpose: Calculate and analyze missing data rates across all signals.
 - Expected Output: A summary CSV file indicating the percentage of missing data per participant and device signal.
 ### Usage Guide:
-````
+```python
 from MissingRate import MissingRateAnalyzer
 
 # Initialize the analyzer
@@ -56,7 +56,7 @@ galaxy hr_missing_rate: 18.76
 e4 bvp_missing_rate: 0.84
 e4 acc_missing_rate: 0.31
 polar ecg_missing_rate: 0.12
-````
+```
 ### [SamplingRate.py](Step01_DatasetCompletenessAnalysis%2FSamplingRate.py):
 - Purpose: Validate and analyze sampling rates for each device’s signals.
 - Expected Outputs:
@@ -153,7 +153,7 @@ Expected Outputs: A CSV file containing segmented signals (PPG, ECG, ACC) for ea
 - Configurable parameters:
   - window_size: Duration of each analysis window (default: 8 seconds)
   - window_step: Sliding step between consecutive windows (default: 2 seconds)
-```` python
+```python
 from window_segment import WindowProcessor
 import os
 import pandas as pd
@@ -239,7 +239,7 @@ Duration: 300.00 seconds
 Session: baseline
 Window Number: 1
 Heart Rate: 72.5
-````
+```
 ## 03 Denoising 
 Located in [Step03_Denosing](Step03_Denosing), this section handles signal denoising.
 
@@ -247,7 +247,7 @@ For optimal performance, we recommend referring to the original papers for algor
 ### [IMAT_Denosing.py](Step03_Denosing%2FIMAT_Denosing.py)
 This file implements the Iterative Method with Adaptive Thresholding (IMAT) approach for motion artifact reduction, based on spectral analysis and sparse signal reconstruction
 #### Usage Example 1: DataFrame-based Processing
-```` python
+``` python
 from imat_denoising import IMATDenoising
 import numpy as np
 import pandas as pd
@@ -284,9 +284,9 @@ import pandas as pd
 The `process_dataframe` method returns a DataFrame with additional columns:
 - `denoised_signal`: Denoised PPG signal as semicolon-separated values
 - `heart_rate`: Estimated heart rate in BPM
-````
+```
 #### Usage Example 2: File-based Processing
-```` python
+``` python
 from imat_denoising import process_dataset
 
 # Process specific participants
@@ -302,13 +302,13 @@ from imat_denoising import process_dataset
 The file-based processing creates the following output files:
 - `{participant_id}_processed_GD_denoised.csv`: Contains denoised signals and heart rate estimates
 - Location: `RESULTS_DIR/IMAT/{filename}`
-````
+```
 #### References
 Mashhadi, M.B., Asadi, E., Eskandari, M., Kiani, S. and Marvasti, F., 2015. Heart rate tracking using wrist-type photoplethysmographic (PPG) signals during physical exercise with simultaneous accelerometry. IEEE Signal Processing Letters, 23(2), pp.227-231.
 ### [Wiener_Denosing.py](Step03_Denosing%2FWiener_Denosing.py)
 This file provides the Wiener filtering implementation with adaptive noise estimation for PPG signals during physical activity
 #### Usage Example 1: DataFrame-based Processing
-```` python
+``` python
 from wiener_denoising import WienerDenoising  
 import numpy as np
 import pandas as pd
@@ -345,9 +345,9 @@ import pandas as pd
 The `process_dataframe` method returns a DataFrame with additional columns:
 - `denoised_signal`: Denoised PPG signal as semicolon-separated values
 - `heart_rate`: Estimated heart rate in BPM
-````
+```
 #### Usage Example 2: File-based Processing
-```` python
+``` python
 from wiener_denoising import process_dataset
 
 # Process specific participants
@@ -363,13 +363,13 @@ from wiener_denoising import process_dataset
 The file-based processing creates the following output files:
 - `{participant_id}_processed_GD_denoised.csv`: Contains denoised signals and heart rate estimates  
 - Location: `RESULTS_DIR/Wiener/{filename}`
-````
+```
 #### References
 WFPV: Temko, A., 2017. Accurate heart rate monitoring during physical exercises using PPG. IEEE Transactions on Biomedical Engineering, 64(9), pp.2016-2024.
 ### [Kalman_Denoising.py](Step03_Denosing%2FKalman_Denoising.py)
 This file contains the Kalman filter implementation for adaptive motion artifact reduction
 #### Usage Example 1: DataFrame-based Processing
-```` python
+``` python
 from kalman_denoising import KalmanDenoising
 import numpy as np
 import pandas as pd
@@ -404,9 +404,9 @@ The `process_dataframe` method returns a DataFrame with additional columns:
 - `denoised_signal`: Denoised PPG signal as semicolon-separated values
 - `heart_rate`: Estimated heart rate in BPM
 
-```` 
+``` 
 #### Usage Example 2: File-based Processing
-```` python
+``` python
 from kalman_denoising import process_dataset
 
 # Process specific participants
@@ -423,13 +423,13 @@ The file-based processing creates the following output files:
 - `{participant_id}_processed_GD_denoised.csv`: Contains denoised signals and heart rate estimates
 - Location: `RESULTS_DIR/Kalman/{filename}`
 
-````
+```
 #### References
 Seyedtabaii, S.S.A.L. and Seyedtabaii, L., 2008. Kalman filter based adaptive reduction of motion artifact from photoplethysmographic signal. World Acad. Sci. Eng. Technol, 37(2), pp.173-176.
 ### [SVD_Denosing.py](Step03_Denosing%2FSVD_Denosing.py)
 This file implements Singular Value Decomposition-based signal decomposition for artifact removal
 #### Usage Example 1: DataFrame-based Processing
-```` python
+``` python
 from svd_denoising import SVDDenoising
 import numpy as np
 import pandas as pd
@@ -467,9 +467,9 @@ import pandas as pd
 The `process_dataframe` method returns a DataFrame with additional columns:
 - `denoised_signal`: Denoised PPG signal as semicolon-separated values
 - `heart_rate`: Estimated heart rate in BPM
-````
+```
 #### Usage Example 2: File-based Processing
-```` python
+``` python
 from svd_denoising import process_dataset
 
 # Process specific participants
@@ -485,7 +485,7 @@ from svd_denoising import process_dataset
 The file-based processing creates the following output files:
 - `{participant_id}_processed_GD_denoised.csv`: Contains denoised signals and heart rate estimates
 - Location: `RESULTS_DIR/SVD/{filename}`
-````
+```
 #### References
 Reddy, K.A. and Kumar, V.J., 2007, May. Motion artifact reduction in photoplethysmographic signals using singular value decomposition. In 2007 IEEE Instrumentation & Measurement Technology Conference IMTC 2007 (pp. 1-4). IEEE.
 
@@ -507,7 +507,7 @@ This module calculates key ECG and HRV metrics:
 - R-peak Locations: Sample points where R-peaks were detected
 
 #### Usage Example 1: Using DataFrame 
-```` python
+``` python
 from ECG_Calculation_basing_HeartPy import ECGAnalyzer
 
 # Initialize analyzer
@@ -547,9 +547,9 @@ RMSSD (ms): 35.8
 
 >>> print("R-peak Locations:", processed_df['gdPeaks'].iloc[0])
 R-peak Locations: 32;152;272;392;512
-````
+```
 #### Usage Example 2: Processing from Files 
-```` python
+``` python
 from ECG_Calculation_basing_HeartPy import ECGAnalyzer, load_participant_data, load_filter_parameters
 
 # Initialize analyzer
@@ -587,7 +587,7 @@ recovery        78.4   4.1    765.3  40.2    48.9    40.1
 >>> print(f"- SDNN: {window['gdSDNN']:.1f} ms")
 >>> print(f"- RMSSD: {window['gdRMSSD']:.1f} ms")
 >>> print(f"- Peak Count: {len(str(window['gdPeaks']).split(';'))}")
-````
+```
 
 ### [PPG_Calculation_basing_HeartPy.py](Step04_PeakDetection%2FPPG_Calculation_basing_HeartPy.py): 
 This file handles the processing of denoised signals using HeartPy and also measures the difference between PPG-derived and ECG-derived HRV metrics.
@@ -602,7 +602,7 @@ This module calculates the following metrics for both Galaxy Watch and E4:
 - Mean Absolute Error (MAE): Average absolute difference from ECG reference
 
 #### Usage Example 1: Using DataFrame 
-```` python
+``` python
 from PPG_Calculation_basing_HeartPy import PPGAnalyzer
 
 # Initialize analyzer
@@ -649,9 +649,9 @@ SDNN (ms): 43.1
 RMSSD (ms): 37.9
 >>> print(f"Peak Matching Rate (%): {baseline_results['E4']['PMR'][0]}")
 Peak Matching Rate (%): 94.8
-````
+```
 #### Usage Example 2: Processing from Files 
-```` python
+``` python
 from PPG_Calculation_basing_HeartPy import PPGAnalyzer, load_participant_data
 
 # Initialize analyzer
@@ -720,4 +720,4 @@ Mean PMR: 84.2%
 >>> analyzer.save_results(summary, "output/directory")
 Analysis complete. Results saved to: output/directory/complete_analysis_results.csv
 Analysis complete. Results saved to: output/directory/mae_analysis_results.csv
-````
+```
