@@ -722,3 +722,33 @@ Mean PMR: 84.2%
 Analysis complete. Results saved to: output/directory/complete_analysis_results.csv
 Analysis complete. Results saved to: output/directory/mae_analysis_results.csv
 ```
+
+### [hand_placement_analyzer.py](Step04_PeakDetection%2Fhand_placement_analyzer.py):
+This file analyzes how hand placement (left vs right wrist) affects PPG signal quality and heart rate measurement accuracy by comparing data from participants wearing the Galaxy Watch on different wrists.
+
+### Usage Example 1: Running the Analysis
+```
+from hand_placement_analyzer import HandPlacementMAEAnalyzer
+# Initialize and run the analyzer
+analyzer = HandPlacementMAEAnalyzer()
+analyzer.run_analysis()
+# Results are saved to the specified output directory
+# Hand Placement Overall Report:
+    Device   Metric    Left_Mean  Right_Mean Better_Hand
+0  Galaxy   HR_mae       5.23        4.78       Right
+1  Galaxy   IBI_mae     42.15       38.62       Right
+2  Galaxy  SDNN_mae     12.34       11.87       Right
+3  Galaxy RMSSD_mae     15.76       14.93       Right
+4      E4   HR_mae       6.12        5.89       Right
+5      E4   IBI_mae     45.32       43.87       Right
+6      E4  SDNN_mae     13.45       13.12       Right
+7      E4 RMSSD_mae     16.89       16.23       Right
+
+# Hand Placement Session Summary:
+       Session  Left_Hand_Galaxy_HR_MAE  Right_Hand_Galaxy_HR_MAE Better_Hand
+0     baseline                   3.42                     3.15        Right
+1  tsst-speech                   4.87                     4.25        Right
+2      walking                   5.75                     5.12        Right
+3      jogging                   8.34                     7.45        Right
+4      running                  10.23                     8.92        Right
+```
