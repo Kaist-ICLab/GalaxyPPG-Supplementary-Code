@@ -1,12 +1,13 @@
 import os
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from abc import ABC, abstractmethod
 from config import BASE_DIR, RAW_DIR
 
 class OverallSamplingRateAnalyzer:
     """Main analyzer class that coordinates device-specific analyzers"""
+
     def __init__(self):
         self.analyzers = {
             'galaxy': GalaxyWatchAnalyzer(),
@@ -15,6 +16,86 @@ class OverallSamplingRateAnalyzer:
         }
         self.output_path = os.path.join(BASE_DIR, 'SamplingRateAnalysis')
         os.makedirs(self.output_path, exist_ok=True)
+
+        self.all_results = []  # Store all results for global statistics
+
+        # FIX: Initialize the dictionary to store all sampling periods.
+        self.all_sampling_periods = {}
+
+    def calculate_global_sampling_statistics(self) -> Dict:
+        """
+        Calculate global sampling statistics by dividing total samples by total time.
+        The function now includes additional checks to ensure that session and device data
+        are valid before accessing their values.
+        """
+        global_stats = {}
+
+        # Track total samples and total time for each device-signal pair
+        device_signal_totals = {}
+
+        # Iterate through all participants and sessions
+        for result in self.all_results:
+            # Get the sessions dictionary safely (skip if missing or None)
+            sessions = result.get('sessions', {})
+            if sessions is None:
+                continue
+            for session_name, session_data in sessions.items():
+                # Ensure that session_data is a dictionary
+                if not isinstance(session_data, dict):
+                    continue
+                for device_name, device_data in session_data.items():
+                    # Skip if device_data is None or not a dictionary
+                    if not device_data or not isinstance(device_data, dict):
+                        continue
+
+                    # Use .get to safely access 'duration' (set default to 0 if missing)
+                    session_duration = device_data.get('duration', 0)
+                    # If duration is zero (or invalid), skip processing for this device in the session
+                    if not session_duration:
+                        continue
+
+                    # Safely get the signals dictionary; skip if missing or None
+                    signals = device_data.get('signals', {})
+                    if signals is None:
+                        continue
+
+                    for signal_type, signal_stats in signals.items():
+                        # Skip if signal_stats is None or missing expected keys
+                        if not signal_stats or 'actual_samples' not in signal_stats:
+                            continue
+
+                        key = f"{device_name}_{signal_type}"
+
+                        # Initialize totals for this device-signal pair if not already present
+                        if key not in device_signal_totals:
+                            device_signal_totals[key] = {
+                                'total_samples': 0,
+                                'total_time': 0,
+                                'expected_rate': signal_stats.get('expected_rate', 0)
+                            }
+
+                        # Add the session's sample counts and duration to the running totals
+                        device_signal_totals[key]['total_samples'] += signal_stats['actual_samples']
+                        device_signal_totals[key]['total_time'] += session_duration
+
+        # Calculate overall sampling rates and coverage ratios for each device-signal combination
+        for key, totals in device_signal_totals.items():
+            if totals['total_time'] > 0:
+                actual_rate = totals['total_samples'] / totals['total_time']
+                device, signal = key.split('_', 1)
+                global_stats[key] = {
+                    'mean_rate': actual_rate,
+                    'total_samples': totals['total_samples'],
+                    'total_time_seconds': totals['total_time'],
+                    'expected_rate': totals['expected_rate'],
+                    'coverage_ratio': actual_rate / totals['expected_rate'] if totals['expected_rate'] > 0 else 0
+                }
+            else:
+                global_stats[key] = {
+                    'error': 'No valid time data'
+                }
+
+        return global_stats
 
     def process_participant(self, participant: str) -> Dict:
         """Process single participant data"""
@@ -46,6 +127,20 @@ class OverallSamplingRateAnalyzer:
                                 df['timestamp'] = analyzer.adjust_timestamp(df['phoneTimestamp'])
                             else:
                                 df['timestamp'] = analyzer.adjust_timestamp(df['timestamp'])
+
+                            # Sort by timestamp to ensure correct period calculation
+                            df = df.sort_values('timestamp')
+
+                            # Calculate sampling periods for this file and add to global collection
+                            device_signal_key = f"{device_name}_{signal_type}"
+                            if len(df) > 1:
+                                periods = np.diff(df['timestamp'].values) / 1000.0  # Convert to seconds
+                                # Initialize dictionary entry if it doesn't exist
+                                if device_signal_key not in self.all_sampling_periods:
+                                    self.all_sampling_periods[device_signal_key] = []
+                                # Append periods from this file
+                                self.all_sampling_periods[device_signal_key].extend(periods)
+
                             data[key] = df
                         else:
                             results['column_errors'].append(f"{key} (Invalid columns)")
@@ -75,6 +170,7 @@ class OverallSamplingRateAnalyzer:
 
         return results
 
+
     def generate_reports(self, all_results: List[Dict]):
         """Generate comprehensive reports for all devices"""
         # Create DataFrames for reports
@@ -93,28 +189,39 @@ class OverallSamplingRateAnalyzer:
             # Process sampling rate data
             for session, session_data in result['sessions'].items():
                 for device, device_data in session_data.items():
+                    # Skip if device_data is None
+                    if device_data is None:
+                        continue
+
+                    # Skip if signals key is missing
+                    if 'signals' not in device_data:
+                        continue
+
                     for signal_type, signal_stats in device_data['signals'].items():
-                        if 'error' not in signal_stats:
-                            record = {
-                                'Participant': result['participant'],
-                                'Session': session,
-                                'Device': device,
-                                'Signal': signal_type,
-                                'Duration_Seconds': device_data['duration'],
-                                'Expected_Rate': signal_stats['expected_rate'],
-                                'Actual_Rate': signal_stats['actual_rate'],
-                                'Expected_Samples': signal_stats['expected_samples'],
-                                'Actual_Samples': signal_stats['actual_samples'],
-                                'Coverage_Ratio': signal_stats['coverage_ratio']
-                            }
+                        # Skip if signal_stats is None or has error
+                        if signal_stats is None or 'error' in signal_stats:
+                            continue
 
-                            if 'axis_samples' in signal_stats:
-                                for axis, count in signal_stats['axis_samples'].items():
-                                    record[f'{axis}_samples'] = count
-                            elif 'valid_samples' in signal_stats:
-                                record['valid_samples'] = signal_stats['valid_samples']
+                        record = {
+                            'Participant': result['participant'],
+                            'Session': session,
+                            'Device': device,
+                            'Signal': signal_type,
+                            'Duration_Seconds': device_data['duration'],
+                            'Expected_Rate': signal_stats['expected_rate'],
+                            'Actual_Rate': signal_stats['actual_rate'],
+                            'Expected_Samples': signal_stats['expected_samples'],
+                            'Actual_Samples': signal_stats['actual_samples'],
+                            'Coverage_Ratio': signal_stats['coverage_ratio']
+                        }
 
-                            sampling_data.append(record)
+                        if 'axis_samples' in signal_stats:
+                            for axis, count in signal_stats['axis_samples'].items():
+                                record[f'{axis}_samples'] = count
+                        elif 'valid_samples' in signal_stats:
+                            record['valid_samples'] = signal_stats['valid_samples']
+
+                        sampling_data.append(record)
 
         # Save reports
         if availability_data:
@@ -151,6 +258,33 @@ class OverallSamplingRateAnalyzer:
 
             session_summary.to_csv(os.path.join(self.output_path, 'session_sampling_summary.csv'))
 
+        # Generate and save global sampling statistics
+        global_stats = self.calculate_global_sampling_statistics()
+        global_stats_data = []
+
+        for key, stats in global_stats.items():
+            if 'error' not in stats:
+                device, signal = key.split('_', 1)
+                record = {
+                    'Device': device,
+                    'Signal': signal,
+                    'Expected_Rate': stats['expected_rate'],
+                    'Actual_Rate': stats['mean_rate'],
+                    'Total_Samples': stats['total_samples'],
+                    'Total_Time_Seconds': stats['total_time_seconds'],
+                    'Coverage_Ratio': stats['coverage_ratio']
+                }
+                global_stats_data.append(record)
+
+        if global_stats_data:
+            df_global_stats = pd.DataFrame(global_stats_data)
+            df_global_stats.to_csv(
+                os.path.join(self.output_path, 'global_sampling_statistics.csv'),
+                index=False
+            )
+            print(
+                f"Generated global sampling statistics from {sum([stats['total_samples'] for key, stats in global_stats.items() if 'error' not in stats])} samples")
+
     def process_specific_participant(self, participant_id: str):
         """Process data for a specific participant"""
         if os.path.isdir(os.path.join(RAW_DIR, participant_id)):
@@ -165,9 +299,9 @@ class OverallSamplingRateAnalyzer:
         """Process all participants and generate reports"""
         participants = [d for d in os.listdir(RAW_DIR)
                         if os.path.isdir(os.path.join(RAW_DIR, d))
-                        and d.startswith('P')]
+                        and d.startswith('P') and d != 'P01']
 
-        all_results = []
+        self.all_results = []  # Store all results for global statistics
         total_participants = len(participants)
 
         print(f"Starting analysis for {total_participants} participants...")
@@ -177,17 +311,19 @@ class OverallSamplingRateAnalyzer:
             try:
                 result = self.process_participant(participant)
                 if result:
-                    all_results.append(result)
+                    self.all_results.append(result)
             except Exception as e:
                 print(f"Error processing participant {participant}: {str(e)}")
 
         # Generate comprehensive reports
-        if all_results:
-            self.generate_reports(all_results)
+        if self.all_results:
+            self.generate_reports(self.all_results)
             print(f"\nAnalysis completed. Results saved in: {self.output_path}")
-            print(f"Successfully processed {len(all_results)} out of {total_participants} participants")
+            print(f"Successfully processed {len(self.all_results)} out of {total_participants} participants")
         else:
             print("No valid results to generate reports")
+
+
 class BaseSamplingAnalyzer(ABC):
     """Base class for sampling rate analysis"""
     """
@@ -196,6 +332,7 @@ class BaseSamplingAnalyzer(ABC):
         This class defines the interface for analyzing sampling rates of different
         wearable devices. Implementations should provide device-specific logic.
     """
+
     def __init__(self, device_name: str):
         self.device_name = device_name
         self.output_path = os.path.join(BASE_DIR, 'SamplingRateAnalysis')
@@ -295,7 +432,50 @@ class BaseSamplingAnalyzer(ABC):
                         'error': 'No data in session window'
                     }
 
-        return session_stats
+        return session_stats  # Return the stats regardless of whether we processed any signals
+
+
+def calculate_sampling_periods(self,
+                               timestamps: np.ndarray) -> Tuple[np.ndarray, Dict[str, float]]:
+    """
+    Calculate sampling periods (time between consecutive samples)
+    Returns the periods array and statistics
+    """
+    if len(timestamps) < 2:
+        return np.array([]), {
+            'mean': 0,
+            'std': 0,
+            'min': 0,
+            'max': 0,
+            'median': 0
+        }
+
+    # Calculate periods in seconds
+    periods = np.diff(timestamps) / 1000.0
+
+    # Filter out unreasonable periods (e.g., negative or extremely large)
+    valid_periods = periods[periods > 0]
+
+    if len(valid_periods) == 0:
+        return np.array([]), {
+            'mean': 0,
+            'std': 0,
+            'min': 0,
+            'max': 0,
+            'median': 0
+        }
+
+    stats = {
+        'mean': np.mean(valid_periods),
+        'std': np.std(valid_periods),
+        'min': np.min(valid_periods),
+        'max': np.max(valid_periods),
+        'median': np.median(valid_periods)
+    }
+
+    return valid_periods, stats
+
+
 class GalaxyWatchAnalyzer(BaseSamplingAnalyzer):
     """Galaxy Watch specific analyzer"""
 
@@ -332,8 +512,11 @@ class GalaxyWatchAnalyzer(BaseSamplingAnalyzer):
 
     def adjust_timestamp(self, timestamp: pd.Series) -> pd.Series:
         return timestamp  # No adjustment needed for Galaxy Watch
+
+
 class E4Analyzer(BaseSamplingAnalyzer):
     """E4 specific analyzer"""
+
     def __init__(self):
         super().__init__('e4')
 
@@ -367,6 +550,8 @@ class E4Analyzer(BaseSamplingAnalyzer):
 
     def adjust_timestamp(self, timestamp: pd.Series) -> pd.Series:
         return timestamp / 1000  # Convert microseconds to milliseconds
+
+
 class PolarH10Analyzer(BaseSamplingAnalyzer):
     """PolarH10 specific analyzer"""
 
@@ -378,7 +563,7 @@ class PolarH10Analyzer(BaseSamplingAnalyzer):
             'ecg': {
                 'rate': 130,
                 'file': 'ECG.csv',
-                'columns': ['phoneTimestamp', 'sensorTimestamp', 'timestamp', 'ecg'],
+                'columns': ['phoneTimestamp', 'sensorTimestamp', 'ecg'],
                 'value_col': 'ecg'
             },
             'acc': {
@@ -397,6 +582,8 @@ class PolarH10Analyzer(BaseSamplingAnalyzer):
 
     def adjust_timestamp(self, timestamp: pd.Series) -> pd.Series:
         return timestamp - 32400000  # Subtract 9 hours
+
+
 def main():
     try:
         analyzer = OverallSamplingRateAnalyzer()
@@ -410,5 +597,7 @@ def main():
         import traceback
         traceback.print_exc()
 
+
 if __name__ == '__main__':
     main()
+

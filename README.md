@@ -61,6 +61,7 @@ polar ecg_missing_rate: 0.12
 - Purpose: Validate and analyze sampling rates for each device’s signals.
 - Expected Outputs:
   - detailed_sampling_analysis.csv: Detailed per-session sampling info.
+  - global_sampling_statistics: Global Sampling Rate.
   - sampling_rate_summary.csv: Summary of observed vs. expected sampling rates.
   - session_sampling_summary.csv: Session-level statistics.
   - data_availability_report.csv: Highlights any data availability issues.
