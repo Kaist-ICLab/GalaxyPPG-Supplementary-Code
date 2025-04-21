@@ -11,7 +11,7 @@ git clone https://github.com/Kaist-ICLab/GalaxyPPG-Supplementary-Code.git
 cd GalaxyPPG-Supplementary-Code
 pip install -r requirements.txt
 ```
-# Repository Structure
+# Repository Structure 
 - Step01 Dataset Completeness Analysis
 - Step02 Pre-Processing
 - Step03 Denoising
