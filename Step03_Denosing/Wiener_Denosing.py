@@ -5,6 +5,9 @@ from scipy import signal
 from scipy.fft import fft, ifft
 import os
 import pandas as pd
+import sys
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, parent_dir)
 from config import RESULTS_DIR, WINDOW_DIR
 
 
@@ -18,8 +21,8 @@ class WienerDenoising:
 
         self.fft_res = 1024
         self.wf_length = 15
-        self.cutoff_freq_hz_hp = 0.5
-        self.cutoff_freq_hz_lp = 4
+        self.cutoff_freq_hz_hp = 1
+        self.cutoff_freq_hz_lp = 3
 
         self.galaxy_prev_data = {
             'prev_ppg_fft': None,
@@ -329,7 +332,7 @@ def process_dataset(dataset_name=None):
 
             for i, row in df.iterrows():
                 try:
-                    galaxy_ppg = np.array([float(x) for x in row['galaxyPPG'].split(';') if x.strip()])
+                    galaxy_ppg = - np.array([float(x) for x in row['galaxyPPG'].split(';') if x.strip()])
                     galaxy_acc = np.array([float(x) for x in row['galaxyACC'].split(';') if x.strip()]).reshape(-1, 3)
 
                     e4_bvp = np.array([float(x) for x in row['e4BVP'].split(';') if x.strip()])

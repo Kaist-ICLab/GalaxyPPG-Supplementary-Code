@@ -5,6 +5,7 @@ import heartpy as hp
 from heartpy.filtering import remove_baseline_wander, filter_signal
 from heartpy.preprocessing import enhance_ecg_peaks
 from typing import Tuple, Optional
+import sys
 
 class ECGAnalyzer:
     def __init__(self):
@@ -117,9 +118,13 @@ class ECGAnalyzer:
                     ecg_signal = np.array([float(x) for x in row['polarECG'].split(';')])
 
                     # Get filter parameters
+                    # params = filter_params[
+                    #     (filter_params['windowNumber'] == row['windowNumber']) &
+                    #     (filter_params['session'] == row['session'])
+                    #     ].iloc[0]
+
                     params = filter_params[
-                        (filter_params['windowNumber'] == row['windowNumber']) &
-                        (filter_params['session'] == row['session'])
+                        (filter_params['windowNumber'] == row['windowNumber'])
                         ].iloc[0]
 
                     # Process signal
@@ -283,7 +288,9 @@ def load_filter_parameters(param_dir: str, participant_id: str) -> pd.DataFrame:
         raise FileNotFoundError(f"Parameter file not found for participant {participant_id}")
     return pd.read_csv(param_file)
 def main():
-    from config import BASE_DIR
+    parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    sys.path.insert(0, parent_dir)
+    from  config import BASE_DIR
 
     window_data_dir = os.path.join(BASE_DIR, 'WindowData')
     param_dir = os.path.join('filter_parameters')

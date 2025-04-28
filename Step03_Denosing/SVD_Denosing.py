@@ -4,6 +4,9 @@ import numpy as np
 from scipy import signal
 import os
 import pandas as pd
+import sys
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, parent_dir)
 from config import RESULTS_DIR, WINDOW_DIR
 
 
@@ -280,7 +283,7 @@ def process_dataset():
             for i, row in df.iterrows():
                 try:
                     if pd.notna(row['galaxyPPG']) and pd.notna(row['galaxyACC']):
-                        ppg = np.array([float(x) for x in row['galaxyPPG'].split(';') if x.strip()])
+                        ppg = - np.array([float(x) for x in row['galaxyPPG'].split(';') if x.strip()])
                         acc = np.array([float(x) for x in row['galaxyACC'].split(';') if x.strip()]).reshape(-1, 3)
 
                         denoised = denoiser.denoise(

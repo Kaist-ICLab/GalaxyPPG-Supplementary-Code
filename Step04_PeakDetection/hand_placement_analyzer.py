@@ -5,22 +5,24 @@ import heartpy as hp
 from typing import Dict, List, Tuple, Optional
 import traceback
 import sys
+from scipy.stats import ttest_rel, wilcoxon
 from collections import defaultdict
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config import WINDOW_DIR, RESULTS_DIR, RAW_DIR
-from PPG_Calculation_basing_HeartPy import
 
 
 class HandPlacementMAEAnalyzer:
     """
     Analyzer for assessing the impact of hand position (left vs right)
     on heart rate metric accuracy compared to ECG ground truth.
+    This version compares left vs right placement within each participant,
+    regardless of which device is worn on which hand.
     """
-
     def __init__(self):
         """Initialize the analyzer with the required parameters."""
         # Load metadata file containing hand placement information
-        meta_path = os.path.join(RAW_DIR, 'META.csv')
+        meta_path = os.path.join(RAW_DIR, 'Meta.csv')
         self.meta_df = pd.read_csv(meta_path)
 
         # Define target sessions to analyze
@@ -42,8 +44,13 @@ class HandPlacementMAEAnalyzer:
         self.left_hand_users = self.meta_df[self.meta_df['GalaxyWatch'] == 'L']['UID'].tolist()
         self.right_hand_users = self.meta_df[self.meta_df['GalaxyWatch'] == 'R']['UID'].tolist()
 
-        print(f"Left hand users: {len(self.left_hand_users)} participants")
-        print(f"Right hand users: {len(self.right_hand_users)} participants")
+        print(f"Left hand Galaxy users: {len(self.left_hand_users)} participants")
+        print(f"Right hand Galaxy users: {len(self.right_hand_users)} participants")
+
+        # Initialize metrics to analyze
+        self.metrics = ['HR', 'IBI', 'SDNN', 'RMSSD']
+
+
     def load_participant_data(self, participant_id: str) -> pd.DataFrame:
         """
         Load processed data with ground truth ECG metrics for a participant
@@ -65,33 +72,32 @@ class HandPlacementMAEAnalyzer:
 
             # Add hand placement info
             hand_placement = self.meta_df[self.meta_df['UID'] == participant_id]['GalaxyWatch'].values[0]
-            df['HandPlacement'] = hand_placement
+            df['GalaxyHandPlacement'] = hand_placement
 
             return df
         except Exception as e:
             print(f"Error loading data for {participant_id}: {str(e)}")
             return pd.DataFrame()
+
+
     def analyze_participant_data(self, df: pd.DataFrame, participant_id: str) -> Dict[str, Dict]:
         """
-        Analyze data for a single participant
+        Analyze data for a single participant, comparing left vs right hand MAE
 
         Args:
             df: DataFrame containing participant data
             participant_id: Participant ID
 
         Returns:
-            Dictionary with analysis results
+            Dictionary with analysis results for left and right hand
         """
+        # Initialize result structure
         results = {
             'participant': participant_id,
-            'hand_placement': df['HandPlacement'].iloc[0] if not df.empty else 'Unknown',
+            'galaxy_hand': df['GalaxyHandPlacement'].iloc[0] if not df.empty else 'Unknown',
             'session_results': {},
-            'device_results': {
-                'Galaxy': {'HR': [], 'IBI': [], 'SDNN': [], 'RMSSD': [],
-                           'HR_mae': [], 'IBI_mae': [], 'SDNN_mae': [], 'RMSSD_mae': []},
-                'E4': {'HR': [], 'IBI': [], 'SDNN': [], 'RMSSD': [],
-                       'HR_mae': [], 'IBI_mae': [], 'SDNN_mae': [], 'RMSSD_mae': []}
-            }
+            'left_hand_maes': {metric: [] for metric in self.metrics},
+            'right_hand_maes': {metric: [] for metric in self.metrics}
         }
 
         # Process each session separately
@@ -103,115 +109,70 @@ class HandPlacementMAEAnalyzer:
 
             # Initialize session results
             results['session_results'][session] = {
-                'Galaxy': {'HR': [], 'IBI': [], 'SDNN': [], 'RMSSD': [],
-                           'HR_mae': [], 'IBI_mae': [], 'SDNN_mae': [], 'RMSSD_mae': []},
-                'E4': {'HR': [], 'IBI': [], 'SDNN': [], 'RMSSD': [],
-                       'HR_mae': [], 'IBI_mae': [], 'SDNN_mae': [], 'RMSSD_mae': []}
+                'left_hand_maes': {metric: [] for metric in self.metrics},
+                'right_hand_maes': {metric: [] for metric in self.metrics}
             }
 
             # Process each window in the session
             for _, window in session_data.iterrows():
+                galaxy_hand = window['GalaxyHandPlacement']
+
                 # Process Galaxy PPG
                 try:
                     galaxy_signal = np.array([float(x) for x in window['galaxyPPG'].split(';') if x.strip()])
-                    working_data, measures = self.process_ppg_signal(galaxy_signal, self.galaxy_fs)
+                    galaxy_working_data, galaxy_measures = self.process_ppg_signal(galaxy_signal, self.galaxy_fs)
 
-                    if working_data is not None and measures is not None and len(working_data['peaklist']) >= 2:
-                        # Calculate metrics
-                        hr = measures['bpm']
-                        ibi = measures['ibi']
-                        sdnn = measures['sdnn']
-                        rmssd = measures['rmssd']
-
-                        # Calculate MAE
-                        hr_mae = abs(hr - window['gdHR']) if not np.isnan(window['gdHR']) else np.nan
-                        ibi_mae = abs(ibi - window['gdIBI']) if not np.isnan(window['gdIBI']) else np.nan
-                        sdnn_mae = abs(sdnn - window['gdSDNN']) if not np.isnan(window['gdSDNN']) else np.nan
-                        rmssd_mae = abs(rmssd - window['gdRMSSD']) if not np.isnan(window['gdRMSSD']) else np.nan
-
-                        # Store metrics in session results
-                        if not np.isnan(hr):
-                            results['session_results'][session]['Galaxy']['HR'].append(hr)
-                        if not np.isnan(ibi):
-                            results['session_results'][session]['Galaxy']['IBI'].append(ibi)
-                        if not np.isnan(sdnn):
-                            results['session_results'][session]['Galaxy']['SDNN'].append(sdnn)
-                        if not np.isnan(rmssd):
-                            results['session_results'][session]['Galaxy']['RMSSD'].append(rmssd)
-
-                        # Store MAE in session results
-                        if not np.isnan(hr_mae):
-                            results['session_results'][session]['Galaxy']['HR_mae'].append(hr_mae)
-                        if not np.isnan(ibi_mae):
-                            results['session_results'][session]['Galaxy']['IBI_mae'].append(ibi_mae)
-                        if not np.isnan(sdnn_mae):
-                            results['session_results'][session]['Galaxy']['SDNN_mae'].append(sdnn_mae)
-                        if not np.isnan(rmssd_mae):
-                            results['session_results'][session]['Galaxy']['RMSSD_mae'].append(rmssd_mae)
-
-                        # Store metrics in device results
-                        if not np.isnan(hr_mae):
-                            results['device_results']['Galaxy']['HR_mae'].append(hr_mae)
-                        if not np.isnan(ibi_mae):
-                            results['device_results']['Galaxy']['IBI_mae'].append(ibi_mae)
-                        if not np.isnan(sdnn_mae):
-                            results['device_results']['Galaxy']['SDNN_mae'].append(sdnn_mae)
-                        if not np.isnan(rmssd_mae):
-                            results['device_results']['Galaxy']['RMSSD_mae'].append(rmssd_mae)
-                except Exception as e:
-                    pass
-
-                # Process E4 BVP
-                try:
+                    # Process E4 BVP
                     e4_signal = np.array([float(x) for x in window['e4BVP'].split(';') if x.strip()])
-                    working_data, measures = self.process_ppg_signal(e4_signal, self.e4_fs)
+                    e4_working_data, e4_measures = self.process_ppg_signal(e4_signal, self.e4_fs)
 
-                    if working_data is not None and measures is not None and len(working_data['peaklist']) >= 2:
-                        # Calculate metrics
-                        hr = measures['bpm']
-                        ibi = measures['ibi']
-                        sdnn = measures['sdnn']
-                        rmssd = measures['rmssd']
+                    # Only proceed if both devices have valid measures
+                    if (galaxy_working_data is not None and galaxy_measures is not None and
+                            e4_working_data is not None and e4_measures is not None and
+                            len(galaxy_working_data['peaklist']) >= 2 and
+                            len(e4_working_data['peaklist']) >= 2):
 
-                        # Calculate MAE
-                        hr_mae = abs(hr - window['gdHR']) if not np.isnan(window['gdHR']) else np.nan
-                        ibi_mae = abs(ibi - window['gdIBI']) if not np.isnan(window['gdIBI']) else np.nan
-                        sdnn_mae = abs(sdnn - window['gdSDNN']) if not np.isnan(window['gdSDNN']) else np.nan
-                        rmssd_mae = abs(rmssd - window['gdRMSSD']) if not np.isnan(window['gdRMSSD']) else np.nan
+                        # Calculate MAEs for each metric for both devices
+                        galaxy_maes = {}
+                        e4_maes = {}
 
-                        # Store metrics in session results
-                        if not np.isnan(hr):
-                            results['session_results'][session]['E4']['HR'].append(hr)
-                        if not np.isnan(ibi):
-                            results['session_results'][session]['E4']['IBI'].append(ibi)
-                        if not np.isnan(sdnn):
-                            results['session_results'][session]['E4']['SDNN'].append(sdnn)
-                        if not np.isnan(rmssd):
-                            results['session_results'][session]['E4']['RMSSD'].append(rmssd)
+                        for metric in self.metrics:
+                            # Map metric name to HeartPy keys
+                            hp_key = metric.lower() if metric != 'HR' else 'bpm'
+                            gd_key = f"gd{metric}"
 
-                        # Store MAE in session results
-                        if not np.isnan(hr_mae):
-                            results['session_results'][session]['E4']['HR_mae'].append(hr_mae)
-                        if not np.isnan(ibi_mae):
-                            results['session_results'][session]['E4']['IBI_mae'].append(ibi_mae)
-                        if not np.isnan(sdnn_mae):
-                            results['session_results'][session]['E4']['SDNN_mae'].append(sdnn_mae)
-                        if not np.isnan(rmssd_mae):
-                            results['session_results'][session]['E4']['RMSSD_mae'].append(rmssd_mae)
+                            if hp_key in galaxy_measures and hp_key in e4_measures and gd_key in window:
+                                # Calculate MAE
+                                galaxy_mae = abs(galaxy_measures[hp_key] - window[gd_key]) if not np.isnan(
+                                    window[gd_key]) else np.nan
+                                e4_mae = abs(e4_measures[hp_key] - window[gd_key]) if not np.isnan(
+                                    window[gd_key]) else np.nan
 
-                        # Store metrics in device results
-                        if not np.isnan(hr_mae):
-                            results['device_results']['E4']['HR_mae'].append(hr_mae)
-                        if not np.isnan(ibi_mae):
-                            results['device_results']['E4']['IBI_mae'].append(ibi_mae)
-                        if not np.isnan(sdnn_mae):
-                            results['device_results']['E4']['SDNN_mae'].append(sdnn_mae)
-                        if not np.isnan(rmssd_mae):
-                            results['device_results']['E4']['RMSSD_mae'].append(rmssd_mae)
+                                # Store MAEs
+                                galaxy_maes[metric] = galaxy_mae
+                                e4_maes[metric] = e4_mae
+
+                        # Assign MAEs to left or right hand based on GalaxyWatch placement
+                        left_maes = galaxy_maes if galaxy_hand == 'L' else e4_maes
+                        right_maes = e4_maes if galaxy_hand == 'L' else galaxy_maes
+
+                        # Store MAEs in results
+                        for metric in self.metrics:
+                            if metric in left_maes and not np.isnan(left_maes[metric]):
+                                results['session_results'][session]['left_hand_maes'][metric].append(left_maes[metric])
+                                results['left_hand_maes'][metric].append(left_maes[metric])
+
+                            if metric in right_maes and not np.isnan(right_maes[metric]):
+                                results['session_results'][session]['right_hand_maes'][metric].append(right_maes[metric])
+                                results['right_hand_maes'][metric].append(right_maes[metric])
+
                 except Exception as e:
+                    # Silent exception - we'll just skip this window
                     pass
 
         return results
+
+
     def calculate_aggregated_stats(self, values: List[float]) -> Dict[str, float]:
         """
         Calculate statistics for a list of values
@@ -233,11 +194,12 @@ class HandPlacementMAEAnalyzer:
             'max': np.max(values),
             'count': len(values)
         }
+
+
     def run_analysis(self):
         """Run the hand placement analysis and generate reports"""
-        # Collect results by hand placement
-        left_hand_results = []
-        right_hand_results = []
+        # Store participant results
+        all_participant_results = []
 
         # Process all participants
         for participant_id in self.meta_df['UID'].tolist():
@@ -250,21 +212,18 @@ class HandPlacementMAEAnalyzer:
 
                 # Analyze participant data
                 results = self.analyze_participant_data(df, participant_id)
+                all_participant_results.append(results)
 
-                # Add to appropriate group
-                if results['hand_placement'] == 'L':
-                    left_hand_results.append(results)
-                elif results['hand_placement'] == 'R':
-                    right_hand_results.append(results)
             except Exception as e:
                 print(f"Error processing participant {participant_id}: {str(e)}")
                 traceback.print_exc()
 
-        # Generate overall results
-        self.generate_overall_report(left_hand_results, right_hand_results)
+        # Generate reports
+        self.generate_overall_report(all_participant_results)
+        self.generate_session_report(all_participant_results)
+        self.generate_handedness_summary(all_participant_results)
 
-        # Generate session-specific results
-        self.generate_session_report(left_hand_results, right_hand_results)
+
     def process_ppg_signal(self, signal: np.ndarray, sample_rate: float) -> Tuple[Optional[Dict], Optional[Dict]]:
         """
         Process PPG signal to extract heart rate metrics using HeartPy
@@ -328,6 +287,8 @@ class HandPlacementMAEAnalyzer:
 
         except Exception as e:
             return None, None
+
+
     def post_process_peaks(self, signal: np.ndarray, peaks: np.ndarray, sample_rate: float) -> np.ndarray:
         """
         Enhanced peak detection post-processing
@@ -482,169 +443,189 @@ class HandPlacementMAEAnalyzer:
                     validated_peaks.append(peak)
 
         return np.array(validated_peaks, dtype=np.int64)
-    def generate_overall_report(self, left_hand_results: List[Dict], right_hand_results: List[Dict]):
+
+
+    def generate_overall_report(self, all_participant_results: List[Dict]):
         """
-        Generate overall report comparing left and right hand placement
-
-        Args:
-            left_hand_results: Results for participants with left hand placement
-            right_hand_results: Results for participants with right hand placement
+        Generate an overall report comparing left vs. right hand placement
+        across all participants and metrics.
         """
-        # Combine all MAE values for each device and metric
-        devices = ['Galaxy', 'E4']
-        metrics = ['HR_mae', 'IBI_mae', 'SDNN_mae', 'RMSSD_mae']
+        # Initialize results for each metric
+        metric_results = {metric: {'left': [], 'right': []} for metric in self.metrics}
 
-        # Organize data for reporting
-        report_data = []
+        # Collect all MAE values across participants
+        for result in all_participant_results:
+            for metric in self.metrics:
+                metric_results[metric]['left'].extend(result['left_hand_maes'][metric])
+                metric_results[metric]['right'].extend(result['right_hand_maes'][metric])
 
-        for device in devices:
-            for metric in metrics:
-                # Collect all values for left hand
-                left_values = []
-                for result in left_hand_results:
-                    left_values.extend(result['device_results'][device][metric])
+        # Build report rows
+        report_rows = []
+        for metric in self.metrics:
+            left_vals = metric_results[metric]['left']
+            right_vals = metric_results[metric]['right']
 
-                # Collect all values for right hand
-                right_values = []
-                for result in right_hand_results:
-                    right_values.extend(result['device_results'][device][metric])
+            # Calculate statistics
+            left_stats = self.calculate_aggregated_stats(left_vals)
+            right_stats = self.calculate_aggregated_stats(right_vals)
+
+            # Compare left vs right
+            diff = left_stats['mean'] - right_stats['mean'] if not np.isnan(left_stats['mean']) and not np.isnan(
+                right_stats['mean']) else np.nan
+            better_hand = 'Right' if diff > 0 else 'Left' if diff < 0 else 'Equal' if diff == 0 else 'Unknown'
+
+            # Add to report
+            report_rows.append({
+                'Metric': metric,
+                'Left_Mean_MAE': left_stats['mean'],
+                'Left_StdDev': left_stats['std'],
+                'Left_Count': left_stats['count'],
+                'Right_Mean_MAE': right_stats['mean'],
+                'Right_StdDev': right_stats['std'],
+                'Right_Count': right_stats['count'],
+                'Difference': diff,
+                'Better_Hand': better_hand
+            })
+
+        # Create and save report
+        report_df = pd.DataFrame(report_rows)
+        report_df.to_csv(os.path.join(self.output_dir, 'overall_hand_placement_comparison.csv'), index=False)
+        print(f"Overall report saved to {os.path.join(self.output_dir, 'overall_hand_placement_comparison.csv')}")
+
+
+    def generate_session_report(self, all_participant_results: List[Dict]):
+        """
+        Generate a session-specific report comparing left vs. right hand placement
+        across all metrics.
+        """
+        # Initialize structure to hold session-specific MAEs
+        session_maes = {session: {metric: {'left': [], 'right': []} for metric in self.metrics}
+                        for session in self.target_sessions}
+
+        # Collect MAEs by session
+        for result in all_participant_results:
+            for session, session_data in result['session_results'].items():
+                for metric in self.metrics:
+                    session_maes[session][metric]['left'].extend(session_data['left_hand_maes'][metric])
+                    session_maes[session][metric]['right'].extend(session_data['right_hand_maes'][metric])
+
+        # Build report rows
+        report_rows = []
+        for session in self.target_sessions:
+            for metric in self.metrics:
+                left_vals = session_maes[session][metric]['left']
+                right_vals = session_maes[session][metric]['right']
 
                 # Calculate statistics
-                left_stats = self.calculate_aggregated_stats(left_values)
-                right_stats = self.calculate_aggregated_stats(right_values)
+                left_stats = self.calculate_aggregated_stats(left_vals)
+                right_stats = self.calculate_aggregated_stats(right_vals)
 
-                # Calculate difference and significance
-                mean_diff = left_stats['mean'] - right_stats['mean'] if not np.isnan(
-                    left_stats['mean']) and not np.isnan(right_stats['mean']) else np.nan
-                percent_diff = (mean_diff / right_stats['mean'] * 100) if not np.isnan(mean_diff) and right_stats[
-                    'mean'] != 0 else np.nan
-                better_hand = 'Right' if not np.isnan(mean_diff) and mean_diff > 0 else 'Left' if not np.isnan(
-                    mean_diff) and mean_diff < 0 else 'Equal'
+                # Compare left vs right
+                diff = left_stats['mean'] - right_stats['mean'] if not np.isnan(left_stats['mean']) and not np.isnan(
+                    right_stats['mean']) else np.nan
+                better_hand = 'Right' if diff > 0 else 'Left' if diff < 0 else 'Equal' if diff == 0 else 'Unknown'
 
-                # Add to report data
-                report_data.append({
-                    'Device': device,
+                # Calculate statistical significance if possible
+                p_value = np.nan
+                if left_stats['count'] > 1 and right_stats['count'] > 1:
+                    try:
+                        _, p_value = wilcoxon(left_vals, right_vals, alternative='two-sided')
+                    except:
+                        p_value = np.nan
+
+                # Add to report
+                report_rows.append({
+                    'Session': session,
                     'Metric': metric,
-                    'Left_Mean': left_stats['mean'],
+                    'Left_Mean_MAE': left_stats['mean'],
                     'Left_StdDev': left_stats['std'],
                     'Left_Count': left_stats['count'],
-                    'Right_Mean': right_stats['mean'],
+                    'Right_Mean_MAE': right_stats['mean'],
                     'Right_StdDev': right_stats['std'],
                     'Right_Count': right_stats['count'],
-                    'Mean_Difference': mean_diff,
-                    'Percent_Difference': percent_diff,
-                    'Better_Hand': better_hand
+                    'Difference': diff,
+                    'Better_Hand': better_hand,
+                    'p_value': p_value,
+                    'Significant': p_value < 0.05 if not np.isnan(p_value) else False
                 })
 
-        # Create DataFrame and save to CSV
-        report_df = pd.DataFrame(report_data)
-        report_df.to_csv(os.path.join(self.output_dir, 'hand_placement_overall_report.csv'), index=False)
+        # Create and save report
+        report_df = pd.DataFrame(report_rows)
+        report_df.to_csv(os.path.join(self.output_dir, 'session_hand_placement_comparison.csv'), index=False)
+        print(f"Session report saved to {os.path.join(self.output_dir, 'session_hand_placement_comparison.csv')}")
 
-        # Print summary
-        print("\nHand Placement Overall Report:")
-        print(report_df[['Device', 'Metric', 'Left_Mean', 'Right_Mean', 'Better_Hand']])
-    def generate_session_report(self, left_hand_results: List[Dict], right_hand_results: List[Dict]):
+
+    def generate_handedness_summary(self, all_participant_results: List[Dict]):
         """
-        Generate session-specific report comparing left and right hand placement
+        Generate participant-level summary comparing left and right hand placement
+        for HR MAE with paired statistical testing.
 
-        Args:
-            left_hand_results: Results for participants with left hand placement
-            right_hand_results: Results for participants with right hand placement
+        This analysis is more statistically sound because it uses paired comparisons
+        within each participant, controlling for individual differences.
         """
-        # Organize data by session
-        devices = ['Galaxy', 'E4']
-        metrics = ['HR_mae', 'IBI_mae', 'SDNN_mae', 'RMSSD_mae']
+        # Collect participant-level means for HR MAE
+        participant_means = []
 
-        # Initialize data structure
-        session_data = defaultdict(list)
+        for result in all_participant_results:
+            participant_id = result['participant']
 
-        # Process each session
-        for session in self.target_sessions:
-            for device in devices:
-                for metric in metrics:
-                    # Collect values for left hand
-                    left_values = []
-                    for result in left_hand_results:
-                        if session in result['session_results']:
-                            left_values.extend(result['session_results'][session][device][metric])
+            # Calculate mean HR MAE for left and right hand
+            left_hr_maes = result['left_hand_maes']['HR']
+            right_hr_maes = result['right_hand_maes']['HR']
 
-                    # Collect values for right hand
-                    right_values = []
-                    for result in right_hand_results:
-                        if session in result['session_results']:
-                            right_values.extend(result['session_results'][session][device][metric])
+            if len(left_hr_maes) > 0 and len(right_hr_maes) > 0:
+                left_mean = np.mean(left_hr_maes)
+                right_mean = np.mean(right_hr_maes)
 
-                    # Calculate statistics
-                    left_stats = self.calculate_aggregated_stats(left_values)
-                    right_stats = self.calculate_aggregated_stats(right_values)
+                participant_means.append({
+                    'Participant': participant_id,
+                    'GalaxyHandPlacement': result['galaxy_hand'],
+                    'Left_Mean_HR_MAE': left_mean,
+                    'Right_Mean_HR_MAE': right_mean,
+                    'Left_Count': len(left_hr_maes),
+                    'Right_Count': len(right_hr_maes),
+                    'Difference': left_mean - right_mean,
+                    'Better_Hand': 'Right' if left_mean > right_mean else 'Left' if right_mean > left_mean else 'Equal'
+                })
 
-                    # Calculate difference and significance
-                    mean_diff = left_stats['mean'] - right_stats['mean'] if not np.isnan(
-                        left_stats['mean']) and not np.isnan(right_stats['mean']) else np.nan
-                    percent_diff = (mean_diff / right_stats['mean'] * 100) if not np.isnan(mean_diff) and right_stats[
-                        'mean'] != 0 else np.nan
-                    better_hand = 'Right' if not np.isnan(mean_diff) and mean_diff > 0 else 'Left' if not np.isnan(
-                        mean_diff) and mean_diff < 0 else 'Equal'
+        # Create and save participant means
+        means_df = pd.DataFrame(participant_means)
+        means_df.to_csv(os.path.join(self.output_dir, 'participant_hand_placement_means.csv'), index=False)
 
-                    # Add to session data
-                    session_data[session].append({
-                        'Session': session,
-                        'Device': device,
-                        'Metric': metric,
-                        'Left_Mean': left_stats['mean'],
-                        'Left_StdDev': left_stats['std'],
-                        'Left_Count': left_stats['count'],
-                        'Right_Mean': right_stats['mean'],
-                        'Right_StdDev': right_stats['std'],
-                        'Right_Count': right_stats['count'],
-                        'Mean_Difference': mean_diff,
-                        'Percent_Difference': percent_diff,
-                        'Better_Hand': better_hand
-                    })
+        # Perform paired t-test on participant means
+        if len(participant_means) > 1:
+            left_means = [p['Left_Mean_HR_MAE'] for p in participant_means]
+            right_means = [p['Right_Mean_HR_MAE'] for p in participant_means]
 
-        # Combine all session data
-        all_session_data = []
-        for session, data in session_data.items():
-            all_session_data.extend(data)
+            t_stat, p_value = ttest_rel(left_means, right_means)
 
-        # Create DataFrame and save to CSV
-        session_df = pd.DataFrame(all_session_data)
-        session_df.to_csv(os.path.join(self.output_dir, 'hand_placement_session_report.csv'), index=False)
+            print(f"\nPaired t-test results for Left vs Right hand placement (HR MAE):")
+            print(f"Number of participants with valid data: {len(participant_means)}")
+            print(f"Left hand mean HR MAE: {np.mean(left_means):.2f} ± {np.std(left_means):.2f}")
+            print(f"Right hand mean HR MAE: {np.mean(right_means):.2f} ± {np.std(right_means):.2f}")
+            print(f"t-statistic: {t_stat:.4f}")
+            print(f"p-value: {p_value:.4f}")
+            print(f"Conclusion: {'Significant difference (p<0.05)' if p_value < 0.05 else 'No significant difference'}")
 
-        # Create pivot table for easier comparison
-        pivot_data = []
-        for session in self.target_sessions:
-            if session in session_data:
-                for row in session_data[session]:
-                    if row['Device'] == 'Galaxy' and row['Metric'] == 'HR_mae':  # Just use HR_mae for summary
-                        pivot_data.append({
-                            'Session': session,
-                            'Left_Hand_Galaxy_HR_MAE': row['Left_Mean'],
-                            'Right_Hand_Galaxy_HR_MAE': row['Right_Mean'],
-                            'Better_Hand': row['Better_Hand'],
-                            'Percent_Difference': row['Percent_Difference']
-                        })
-                    if row['Device'] == 'E4' and row['Metric'] == 'HR_mae':
-                        # Update existing row
-                        for i, existing in enumerate(pivot_data):
-                            if existing['Session'] == session:
-                                pivot_data[i]['Left_Hand_E4_HR_MAE'] = row['Left_Mean']
-                                pivot_data[i]['Right_Hand_E4_HR_MAE'] = row['Right_Mean']
-                                pivot_data[i]['E4_Better_Hand'] = row['Better_Hand']
-                                pivot_data[i]['E4_Percent_Difference'] = row['Percent_Difference']
-                                break
+            # Save summary statistics
+            summary = {
+                'Analysis': 'Paired t-test for Left vs Right hand placement (HR MAE)',
+                'Number_of_Participants': len(participant_means),
+                'Left_Hand_Mean_HR_MAE': np.mean(left_means),
+                'Left_Hand_StdDev': np.std(left_means),
+                'Right_Hand_Mean_HR_MAE': np.mean(right_means),
+                'Right_Hand_StdDev': np.std(right_means),
+                't_statistic': t_stat,
+                'p_value': p_value,
+                'Significant': p_value < 0.05
+            }
 
-        # Create pivot DataFrame and save
-        pivot_df = pd.DataFrame(pivot_data)
-        pivot_df.to_csv(os.path.join(self.output_dir, 'hand_placement_session_summary.csv'), index=False)
+            pd.DataFrame([summary]).to_csv(os.path.join(self.output_dir, 'hand_placement_paired_ttest.csv'), index=False)
+            print(f"Paired t-test results saved to {os.path.join(self.output_dir, 'hand_placement_paired_ttest.csv')}")
 
-        # Print summary
-        print("\nHand Placement Session Summary:")
-        print(pivot_df[['Session', 'Left_Hand_Galaxy_HR_MAE', 'Right_Hand_Galaxy_HR_MAE', 'Better_Hand']])
 
 def main():
     analyzer = HandPlacementMAEAnalyzer()
     analyzer.run_analysis()
-
 if __name__ == "__main__":
     main()

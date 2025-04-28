@@ -404,7 +404,6 @@ class PPGAnalyzer:
             # Process Galaxy PPG
             try:
                 galaxy_signal = np.array([float(x) for x in window['denoisedGalaxy'].split(';') if x.strip()])
-                # galaxy_signal = np.array([float(x) for x in window['galaxyPPG'].split(';') if x.strip()])
                 galaxy_results = self.process_signal(galaxy_signal, self.galaxy_fs)
 
                 if galaxy_results[0] is not None:
@@ -550,7 +549,8 @@ def load_participant_data(window_dir: str, results_dir: str, participant_id: str
     """
     try:
         # Read denoised signal data and specify the Denoised algorithm
-        denoised_file = os.path.join(results_dir, 'Wiener', f"{participant_id}_processed_GD_denoised.csv")
+        algo = 'IMAT'
+        denoised_file = os.path.join(results_dir, algo, f"{participant_id}_processed_GD_denoised.csv")
         ground_truth_file = os.path.join(window_dir, f"{participant_id}_processed_GD.csv")
 
         # Read the files
@@ -586,10 +586,14 @@ def print_analysis(results):
                 for metric, stats in metrics.items():
                     print(f"{metric}: {stats['mean']:.2f} ± {stats['std']:.2f} (n={stats['count']})")
 def main():
-    from config import WINDOW_DIR, RESULTS_DIR
+    import sys
+    parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    sys.path.insert(0, parent_dir)
+    from config import RESULTS_DIR, WINDOW_DIR
     # Initialize analyzer
     analyzer = PPGAnalyzer()
-    output_dir = os.path.join(RESULTS_DIR, 'session_analysis')
+    algo = 'IMAT'
+    output_dir = os.path.join(RESULTS_DIR, 'session_analysis', algo)
     os.makedirs(output_dir, exist_ok=True)
 
     all_results = {}

@@ -2,6 +2,9 @@ import os
 from typing import List
 import pandas as pd
 from scipy.signal import find_peaks, butter, filtfilt
+import sys
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, parent_dir)
 from config import RESULTS_DIR, WINDOW_DIR
 import numpy as np
 from scipy import signal
@@ -92,6 +95,7 @@ class IMATDenoising:
                 acc = [np.array(row[col]) for col in acc_cols]
 
                 if device_type.lower() == 'galaxy':
+                    ppg = -ppg
                     denoised, hr = self.process_galaxy(ppg, *acc)
                 else:
                     denoised, hr = self.process_e4(ppg, *acc)
@@ -915,7 +919,7 @@ def process_dataset(participant_range=None, participant_list=None):
             continue
 
 if __name__ == "__main__":
-    process_dataset(participant_range=(22, 24))
+    process_dataset(participant_range=(16, 21))
     # participant_list = ["P03"]
     # process_dataset(participant_list=participant_list)
     # process_dataset()

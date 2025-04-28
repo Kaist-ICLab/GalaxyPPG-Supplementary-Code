@@ -3,6 +3,9 @@ import numpy as np
 import pandas as pd
 from scipy.signal import butter, filtfilt, find_peaks, resample
 import os
+import sys
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, parent_dir)
 from config import RESULTS_DIR, WINDOW_DIR
 
 class KalmanDenoising:
@@ -363,7 +366,7 @@ def process_dataset(participant_range=None, participant_list=None):
                         progress = (i / total_windows) * 100
                         print(f"Progress: {progress:.1f}% ({i}/{total_windows})")
 
-                    galaxy_ppg = np.array([float(x) for x in row['galaxyPPG'].split(';') if x.strip()])
+                    galaxy_ppg = - np.array([float(x) for x in row['galaxyPPG'].split(';') if x.strip()])
                     galaxy_acc = np.array([float(x) for x in row['galaxyACC'].split(';') if x.strip()]).reshape(-1, 3)
 
                     e4_bvp = np.array([float(x) for x in row['e4BVP'].split(';') if x.strip()])
@@ -417,9 +420,9 @@ def process_dataset(participant_range=None, participant_list=None):
 
 
 if __name__ == "__main__":
-    process_dataset(participant_range=(22, 24))
+    # process_dataset(participant_range=(22, 24))
     # Alternative usage:
     # participant_list = ["P03"]
     # process_dataset(participant_list=participant_list)
-    # process_dataset()
+    process_dataset()
 

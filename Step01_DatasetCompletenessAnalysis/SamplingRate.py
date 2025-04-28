@@ -16,10 +16,7 @@ class OverallSamplingRateAnalyzer:
         }
         self.output_path = os.path.join(BASE_DIR, 'SamplingRateAnalysis')
         os.makedirs(self.output_path, exist_ok=True)
-
         self.all_results = []  # Store all results for global statistics
-
-        # FIX: Initialize the dictionary to store all sampling periods.
         self.all_sampling_periods = {}
 
     def calculate_global_sampling_statistics(self) -> Dict:
@@ -98,7 +95,7 @@ class OverallSamplingRateAnalyzer:
         return global_stats
 
     def process_participant(self, participant: str) -> Dict:
-        """Process single participant data"""
+
         print(f"\nProcessing participant: {participant}")
 
         results = {
@@ -284,6 +281,49 @@ class OverallSamplingRateAnalyzer:
             )
             print(
                 f"Generated global sampling statistics from {sum([stats['total_samples'] for key, stats in global_stats.items() if 'error' not in stats])} samples")
+            # Add sampling period analysis
+            period_stats = {}
+            for device_signal_key, periods in self.all_sampling_periods.items():
+                if periods:
+                    # Filter out unreasonable periods (e.g., negative or extremely large)
+                    valid_periods = np.array(periods)
+                    valid_periods = valid_periods[
+                        (valid_periods > 0) & (valid_periods < 10)]  # Max 10 seconds between samples
+
+                    if len(valid_periods) > 0:
+                        period_stats[device_signal_key] = {
+                            'mean_period': np.mean(valid_periods),
+                            'std_period': np.std(valid_periods),
+                            'median_period': np.median(valid_periods),
+                            'min_period': np.min(valid_periods),
+                            'max_period': np.max(valid_periods),
+                            'samples_analyzed': len(valid_periods)
+                        }
+
+            # Save period statistics
+            if period_stats:
+                period_stats_data = []
+                for key, stats in period_stats.items():
+                    device, signal = key.split('_', 1)
+                    record = {
+                        'Device': device,
+                        'Signal': signal,
+                        'Mean_Period_Seconds': stats['mean_period'],
+                        'STD_Period_Seconds': stats['std_period'],
+                        'Median_Period_Seconds': stats['median_period'],
+                        'Min_Period_Seconds': stats['min_period'],
+                        'Max_Period_Seconds': stats['max_period'],
+                        'Samples_Analyzed': stats['samples_analyzed']
+                    }
+                    period_stats_data.append(record)
+
+                df_period_stats = pd.DataFrame(period_stats_data)
+                df_period_stats.to_csv(
+                    os.path.join(self.output_path, 'sampling_period_statistics.csv'),
+                    index=False
+                )
+                print(
+                    f"Generated sampling period statistics from {sum([stats['samples_analyzed'] for stats in period_stats.values()])} intervals")
 
     def process_specific_participant(self, participant_id: str):
         """Process data for a specific participant"""

@@ -723,32 +723,139 @@ Analysis complete. Results saved to: output/directory/complete_analysis_results.
 Analysis complete. Results saved to: output/directory/mae_analysis_results.csv
 ```
 
-### [hand_placement_analyzer.py](Step04_PeakDetection%2Fhand_placement_analyzer.py):
-This file analyzes how hand placement (left vs right wrist) affects PPG signal quality and heart rate measurement accuracy by comparing data from participants wearing the Galaxy Watch on different wrists.
+### [raw_ppg_heartpy.py](Step04_PeakDetection/raw_ppg_heartpy.py)
 
-### Usage Example 1: Running the Analysis
+This file implements PPG signal processing and HRV metric calculation from raw PPG signals using HeartPy, without any denoising preprocessing. It processes both Galaxy Watch PPG and Empatica E4 BVP signals to calculate heart rate and HRV metrics, comparing them against ECG ground truth.
+
+Key features:
+- Processes both Galaxy Watch (25 Hz) and E4 (64 Hz) PPG signals
+- Calculates HR, IBI, SDNN, RMSSD from PPG peaks
+- Implements peak matching with ECG R-peaks to calculate Peak Matching Rate (PMR)
+- Provides session-by-session analysis across different activities
+- Compares metrics against ECG ground truth
+
+#### Usage Example:
+
+```python
+from raw_ppg_heartpy import rawPPGHeartPy
+
+# Initialize analyzer 
+analyzer = rawPPGHeartPy()
+
+# Create sample DataFrame
+import pandas as pd
+df = pd.DataFrame({
+    'galaxyPPG': ['1.2;1.3;1.4;1.5;1.6', '1.3;1.4;1.5;1.6;1.7'],
+    'e4BVP': ['0.1;0.2;0.3;0.4;0.5', '0.2;0.3;0.4;0.5;0.6'],
+    'gdHR': [75, 80],
+    'gdIBI': [800, 750],
+    'gdSDNN': [45, 50],
+    'gdRMSSD': [35, 40],
+    'gdPeaks': ['32;152;272;392;512', '35;155;275;395;515'],
+    'session': ['baseline', 'baseline']
+})
+
+# Process data and get results
+results = analyzer.analyze_data(df)
+
+# Access metrics for a specific session and device
+baseline_results = results['baseline']
+
+# Galaxy Watch metrics
+print("Galaxy HR (BPM):", np.mean(baseline_results['Galaxy']['HR']))
+print("Galaxy IBI (ms):", np.mean(baseline_results['Galaxy']['IBI']))
+print("Galaxy SDNN (ms):", np.mean(baseline_results['Galaxy']['SDNN']))
+print("Galaxy RMSSD (ms):", np.mean(baseline_results['Galaxy']['RMSSD']))
+print("Galaxy PMR (%):", np.mean(baseline_results['Galaxy']['PMR']))
+
+# E4 metrics  
+print("E4 HR (BPM):", np.mean(baseline_results['E4']['HR']))
+print("E4 IBI (ms):", np.mean(baseline_results['E4']['IBI']))
+print("E4 SDNN (ms):", np.mean(baseline_results['E4']['SDNN']))
+print("E4 RMSSD (ms):", np.mean(baseline_results['E4']['RMSSD']))  
+print("E4 PMR (%):", np.mean(baseline_results['E4']['PMR']))
 ```
-from hand_placement_analyzer import HandPlacementMAEAnalyzer
-# Initialize and run the analyzer
-analyzer = HandPlacementMAEAnalyzer()
-analyzer.run_analysis()
-# Results are saved to the specified output directory
-# Hand Placement Overall Report:
-    Device   Metric    Left_Mean  Right_Mean Better_Hand
-0  Galaxy   HR_mae       5.23        4.78       Right
-1  Galaxy   IBI_mae     42.15       38.62       Right
-2  Galaxy  SDNN_mae     12.34       11.87       Right
-3  Galaxy RMSSD_mae     15.76       14.93       Right
-4      E4   HR_mae       6.12        5.89       Right
-5      E4   IBI_mae     45.32       43.87       Right
-6      E4  SDNN_mae     13.45       13.12       Right
-7      E4 RMSSD_mae     16.89       16.23       Right
 
-# Hand Placement Session Summary:
-       Session  Left_Hand_Galaxy_HR_MAE  Right_Hand_Galaxy_HR_MAE Better_Hand
-0     baseline                   3.42                     3.15        Right
-1  tsst-speech                   4.87                     4.25        Right
-2      walking                   5.75                     5.12        Right
-3      jogging                   8.34                     7.45        Right
-4      running                  10.23                     8.92        Right
+The results are saved to CSV files in the results directory:
+- complete_analysis_results.csv: Contains all metrics across sessions and devices
+- mae_analysis_results.csv: Contains Mean Absolute Error compared to ECG ground truth
+
+
+### [hand_placement_analyzer.py](Step04_PeakDetection/hand_placement_analyzer.py)
+
+This module analyzes the impact of device placement (left vs right hand) on PPG signal quality and heart rate metric accuracy. It processes both Galaxy Watch and E4 data to compare measurement accuracy based on hand placement, using ECG data from PolarH10 as ground truth.
+
+Key features:
+- Analyzes left vs right hand placement effects on PPG measurements
+- Compares HR, IBI, SDNN, RMSSD accuracy across hand placements
+- Performs statistical analysis (paired t-tests) to assess placement significance
+- Generates comprehensive reports for overall, session-specific, and participant-level analyses
+- Uses Meta.csv to determine device placement for each participant
+
+#### Usage Example:
+
+```python
+from hand_placement_analyzer import HandPlacementMAEAnalyzer
+
+# Initialize analyzer
+analyzer = HandPlacementMAEAnalyzer()
+
+# Run complete analysis
+analyzer.run_analysis()
+
+# Process specific participant
+analyzer.process_participant_data(df, "P02")
+
+# Access participant data
+participant_data = analyzer.load_participant_data("P02")
+
+# Example of accessing results manually
+results = analyzer.analyze_participant_data(participant_data, "P02")
+print("Left hand HR MAE:", np.mean(results['left_hand_maes']['HR']))
+print("Right hand HR MAE:", np.mean(results['right_hand_maes']['HR']))
+```
+
+The analyzer generates three main report files in the results directory:
+
+1. overall_hand_placement_comparison.csv:
+- Aggregated metrics comparing left vs right placement
+- Overall MAE statistics for each metric
+- Better performing hand for each metric
+
+2. session_hand_placement_comparison.csv:
+- Session-specific comparisons of hand placement effects
+- Statistical significance tests for each session
+- MAE differences between left and right placement
+
+3. participant_hand_placement_means.csv:
+- Individual participant-level analysis
+- Mean HR MAE for left and right placement
+- Participant-specific better performing hand
+- Paired t-test results for placement significance
+
+These reports help understand how device placement affects measurement accuracy across different activities and participants.
+
+Example output structure:
+```json
+{
+    "participant": "P02",
+    "galaxy_hand": "R",
+    "session_results": {
+        "baseline": {
+            "left_hand_maes": {
+                "HR": [2.5, 3.1, 2.8],
+                "IBI": [25.3, 28.4, 26.1],
+                "SDNN": [12.4, 13.2, 11.9],
+                "RMSSD": [15.6, 16.2, 14.8]
+            },
+            "right_hand_maes": {
+                "HR": [2.1, 2.8, 2.4],
+                "IBI": [22.1, 24.5, 23.2],
+                "SDNN": [11.2, 12.1, 10.8],
+                "RMSSD": [14.2, 15.1, 13.7]
+            }
+        }
+        // Additional sessions...
+    }
+}
 ```

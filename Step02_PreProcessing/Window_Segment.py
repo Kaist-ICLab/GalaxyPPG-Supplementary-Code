@@ -89,6 +89,9 @@ class WindowProcessor:
                     target_rate
                 )
 
+                if signal_name == 'galaxyPPG' and signal_data is not None:
+                    signal_data = -signal_data
+
                 if signal_data is not None:
                     if len(cols) == 1:
                         window_data[signal_name] = ';'.join(map(str, signal_data.flatten()))
